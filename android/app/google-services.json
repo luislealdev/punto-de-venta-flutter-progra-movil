@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "289080553746",
+    "project_id": "punto-de-venta-moviles",
+    "storage_bucket": "punto-de-venta-moviles.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:289080553746:android:3adf573d6328ff764c43cb",
+        "android_client_info": {
+          "package_name": "com.example.punto_de_venta"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCufjrfirOXJsP43FFWQSwHjLZPTdR73_k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
