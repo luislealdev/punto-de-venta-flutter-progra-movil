@@ -202,8 +202,11 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           ListTile(
             leading: const Icon(Icons.inventory_2_outlined),
-            title: const Text('Inventario'),
-            onTap: () {},
+            title: const Text('Productos'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, '/products');
+            },
           ),
           ListTile(
             leading: const Icon(Icons.people_outline),

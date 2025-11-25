@@ -308,6 +308,14 @@ class AuthService {
     }
   }
 
+  // Método para recargar el contexto del usuario actual
+  Future<void> reloadUserContext() async {
+    final user = currentUser;
+    if (user != null) {
+      await _loadUserContext(user.uid);
+    }
+  }
+
   // Método para superusuarios: cambiar empresa activa
   Future<void> switchCompany(String companyId) async {
     if (currentUserId != null) {

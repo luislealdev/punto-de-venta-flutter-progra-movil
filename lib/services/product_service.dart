@@ -23,7 +23,20 @@ class ProductService extends BaseFirebaseService<ProductDTO> {
     json.remove('id');
     json.remove('createdAt');
     json.remove('updatedAt');
-    return json;
+    
+    // Filtrar valores nulos y strings vacíos para evitar errores de Firebase
+    final Map<String, dynamic> cleanJson = {};
+    json.forEach((key, value) {
+      if (value != null) {
+        if (value is String && value.isNotEmpty) {
+          cleanJson[key] = value;
+        } else if (value is! String) {
+          cleanJson[key] = value;
+        }
+      }
+    });
+    
+    return cleanJson;
   }
 
   // Métodos específicos para productos
