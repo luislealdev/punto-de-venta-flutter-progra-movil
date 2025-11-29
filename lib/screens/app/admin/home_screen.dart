@@ -1,5 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:punto_de_venta/providers/auth_provider.dart' as auth_prov;
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,8 +23,11 @@ class _HomeScreenState extends State<HomeScreen> {
     user = FirebaseAuth.instance.currentUser;
   }
 
-  void _logout() async {
-    await FirebaseAuth.instance.signOut();
+  Future<void> _logout() async {
+    // Usar AuthProvider para logout
+    final authProvider = context.read<auth_prov.AuthProvider>();
+    await authProvider.signOut();
+
     if (mounted) {
       Navigator.pushReplacementNamed(context, '/login');
     }
@@ -76,13 +81,15 @@ class _HomeScreenState extends State<HomeScreen> {
               style: TextStyle(color: Colors.grey[600], fontSize: 16),
             ),
             const SizedBox(height: 24),
-            
+
             // Stats Cards
             LayoutBuilder(
               builder: (context, constraints) {
                 int crossAxisCount = constraints.maxWidth > 600 ? 4 : 2;
-                double childAspectRatio = constraints.maxWidth > 600 ? 1.5 : 1.2;
-                
+                double childAspectRatio = constraints.maxWidth > 600
+                    ? 1.5
+                    : 1.2;
+
                 return GridView.count(
                   crossAxisCount: crossAxisCount,
                   crossAxisSpacing: 16,
@@ -123,9 +130,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               },
             ),
-            
+
             const SizedBox(height: 32),
-            
+
             // Recent Activity Section
             Text(
               'Actividad Reciente',
@@ -138,7 +145,9 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 16),
             Card(
               elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -148,7 +157,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   return ListTile(
                     leading: CircleAvatar(
                       backgroundColor: Colors.blue[50],
-                      child: Icon(Icons.receipt_long, color: _primaryColor, size: 20),
+                      child: Icon(
+                        Icons.receipt_long,
+                        color: _primaryColor,
+                        size: 20,
+                      ),
                     ),
                     title: Text('Venta #${1000 + index}'),
                     subtitle: Text('Hace ${index * 15} minutos'),
@@ -263,7 +276,10 @@ class _HomeScreenState extends State<HomeScreen> {
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),
-            title: const Text('Cerrar Sesión', style: TextStyle(color: Colors.red)),
+            title: const Text(
+              'Cerrar Sesión',
+              style: TextStyle(color: Colors.red),
+            ),
             onTap: _logout,
           ),
           const SizedBox(height: 16),
@@ -272,7 +288,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildStatCard(String title, String value, IconData icon, Color color, String subtitle) {
+  Widget _buildStatCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+    String subtitle,
+  ) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -287,14 +309,21 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Icon(icon, color: color, size: 30),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     subtitle,
-                    style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -312,10 +341,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(height: 4),
                 Text(
                   title,
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: Colors.grey[600], fontSize: 14),
                 ),
               ],
             ),
