@@ -18,42 +18,66 @@ import 'package:punto_de_venta/screens/app/admin/providers_screen.dart';
 import 'package:punto_de_venta/screens/app/admin/stores_screen.dart';
 import 'package:punto_de_venta/screens/auth/login_screen.dart';
 import 'package:punto_de_venta/screens/auth/register_screen.dart';
+import 'package:punto_de_venta/screens/app/admin/profile_screen.dart';
 import 'package:punto_de_venta/utils/theme_app.dart';
-import 'package:punto_de_venta/utils/value_listener.dart';
+
+// Provider imports
+import 'package:provider/provider.dart';
+import 'package:punto_de_venta/providers/auth_provider.dart';
+import 'package:punto_de_venta/providers/theme_provider.dart';
+import 'package:punto_de_venta/providers/product_provider.dart';
+import 'package:punto_de_venta/providers/customer_provider.dart';
+import 'package:punto_de_venta/providers/supplier_provider.dart';
+import 'package:punto_de_venta/providers/sale_provider.dart';
+import 'package:punto_de_venta/providers/store_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Cargar variables de entorno
   await dotenv.load(fileName: ".env");
-  
+
   // Validar configuración
   AppConfig.validateConfiguration();
   AppConfig.printConfiguration();
-  
+
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  runApp(const MyApp());
+
+  // Ejecutar app con MultiProvider
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => ProductProvider()),
+        ChangeNotifierProvider(create: (_) => CustomerProvider()),
+        ChangeNotifierProvider(create: (_) => SupplierProvider()),
+        ChangeNotifierProvider(create: (_) => SaleProvider()),
+        ChangeNotifierProvider(create: (_) => StoreProvider()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
-class MyApp extends StatefulWidget {
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
-  @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder(
-      valueListenable: ValueListener.isDark,
-      builder: (context, value, _) {
+    // Usar Provider para el tema en lugar de ValueListenableBuilder
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, _) {
         return MaterialApp(
-          theme: value ? ThemeApp.darkTheme() : ThemeApp.lightTheme(),
+          theme: themeProvider.isDarkMode
+              ? ThemeApp.darkTheme()
+              : ThemeApp.lightTheme(),
+          themeMode: themeProvider.themeMode,
           routes: {
             '/login': (context) => const LoginScreen(),
             '/register': (context) => const RegisterScreen(),
             '/home': (context) => const HomeScreen(),
+            '/profile': (context) => const ProfileScreen(),
             '/products': (context) => const ProductsScreen(),
             '/customers': (context) => const CustomersScreen(),
             '/providers': (context) => const ProvidersScreen(),
@@ -66,9 +90,8 @@ class _MyAppState extends State<MyApp> {
               case '/products/add':
                 final args = settings.arguments as Map<String, dynamic>?;
                 return MaterialPageRoute(
-                  builder: (context) => AddEditProductScreen(
-                    companyId: args?['companyId'] ?? '',
-                  ),
+                  builder: (context) =>
+                      AddEditProductScreen(companyId: args?['companyId'] ?? ''),
                 );
               case '/products/edit':
                 final args = settings.arguments as Map<String, dynamic>?;
@@ -144,9 +167,8 @@ class _MyAppState extends State<MyApp> {
               case '/stores/add':
                 final args = settings.arguments as Map<String, dynamic>?;
                 return MaterialPageRoute(
-                  builder: (context) => AddEditStoreScreen(
-                    companyId: args?['companyId'] ?? '',
-                  ),
+                  builder: (context) =>
+                      AddEditStoreScreen(companyId: args?['companyId'] ?? ''),
                 );
               case '/stores/edit':
                 final args = settings.arguments as Map<String, dynamic>?;

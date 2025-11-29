@@ -1,20 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:punto_de_venta/services/auth_service.dart';
+import 'package:provider/provider.dart';
+import 'package:punto_de_venta/providers/auth_provider.dart' as auth_prov;
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  Widget build(BuildContext context) {
+    return const _LoginScreenContent();
+  }
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenContent extends StatefulWidget {
+  const _LoginScreenContent();
+
+  @override
+  State<_LoginScreenContent> createState() => _LoginScreenContentState();
+}
+
+class _LoginScreenContentState extends State<_LoginScreenContent> {
   final TextEditingController conUser = TextEditingController();
   final TextEditingController conPwd = TextEditingController();
-  bool isValidating = false;
   bool _obscurePassword = true;
-  AuthService? auth;
 
   // Colors
   final Color _primaryColor = const Color(0xFF1A237E);
@@ -22,12 +30,16 @@ class _LoginScreenState extends State<LoginScreen> {
   final Color _backgroundColor = const Color(0xFFF5F7FA);
 
   @override
-  void initState() {
-    super.initState();
-    auth = AuthService();
+  void dispose() {
+    conUser.dispose();
+    conPwd.dispose();
+    super.dispose();
   }
 
-  void _login() async {
+  Future<void> _login() async {
+    // Obtener el provider
+    final authProvider = context.read<auth_prov.AuthProvider>();
+
     // Validar que los campos no estén vacíos
     if (conUser.text.trim().isEmpty || conPwd.text.trim().isEmpty) {
       _showErrorMessage('❌ Por favor completa todos los campos');
@@ -40,38 +52,30 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    setState(() {
-      isValidating = true;
-    });
-
     try {
-      // Intentar iniciar sesión con Firebase Auth
-      var credential = await auth!.signInWithEmailAndPassword(
+      // Usar AuthProvider en lugar de AuthService directamente
+      final success = await authProvider.signInWithEmailAndPassword(
         conUser.text.trim(),
         conPwd.text,
       );
 
-      var user = credential?.user;
+      if (!mounted) return;
 
-      setState(() {
-        isValidating = false;
-      });
-
-      if (user != null && user.uid.isNotEmpty) {
+      if (success) {
         // Login exitoso
-        print('Login exitoso: ${user.uid}');
-
         _showSuccessMessage('¡Bienvenido de vuelta!');
 
         // Navegar a la pantalla principal
         Navigator.pushReplacementNamed(context, '/home');
       } else {
-        _showErrorMessage('Error al iniciar sesión. Intenta nuevamente.');
+        // Mostrar error del provider
+        final errorMessage =
+            authProvider.errorMessage ??
+            'Error al iniciar sesión. Intenta nuevamente.';
+        _showErrorMessage(errorMessage);
       }
     } catch (e) {
-      setState(() {
-        isValidating = false;
-      });
+      if (!mounted) return;
 
       print('Error capturado en login: $e');
       print('Tipo de error: ${e.runtimeType}');
@@ -82,7 +86,6 @@ class _LoginScreenState extends State<LoginScreen> {
       if (e is FirebaseAuthException) {
         errorMessage = _getFirebaseErrorMessage(e.code);
       } else {
-        // Para cualquier otro tipo de error (PlatformException, TypeError, etc.)
         errorMessage =
             '❌ Credenciales incorrectas.\nVerifica tu correo electrónico y contraseña.';
       }
@@ -168,11 +171,7 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // Logo or Icon
-              Icon(
-                Icons.point_of_sale,
-                size: 80,
-                color: _primaryColor,
-              ),
+              Icon(Icons.point_of_sale, size: 80, color: _primaryColor),
               const SizedBox(height: 16),
               Text(
                 'Punto de Venta',
@@ -185,10 +184,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 8),
               Text(
                 'Inicia sesión para continuar',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
               ),
               const SizedBox(height: 32),
 
@@ -212,7 +208,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           keyboardType: TextInputType.emailAddress,
                           decoration: InputDecoration(
                             labelText: 'Correo Electrónico',
-                            prefixIcon: Icon(Icons.email_outlined, color: _primaryColor),
+                            prefixIcon: Icon(
+                              Icons.email_outlined,
+                              color: _primaryColor,
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -222,7 +221,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: _primaryColor, width: 2),
+                              borderSide: BorderSide(
+                                color: _primaryColor,
+                                width: 2,
+                              ),
                             ),
                             filled: true,
                             fillColor: Colors.grey[50],
@@ -236,10 +238,15 @@ class _LoginScreenState extends State<LoginScreen> {
                           obscureText: _obscurePassword,
                           decoration: InputDecoration(
                             labelText: 'Contraseña',
-                            prefixIcon: Icon(Icons.lock_outline, color: _primaryColor),
+                            prefixIcon: Icon(
+                              Icons.lock_outline,
+                              color: _primaryColor,
+                            ),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                _obscurePassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
                                 color: Colors.grey[600],
                               ),
                               onPressed: () {
@@ -257,7 +264,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: _primaryColor, width: 2),
+                              borderSide: BorderSide(
+                                color: _primaryColor,
+                                width: 2,
+                              ),
                             ),
                             filled: true,
                             fillColor: Colors.grey[50],
@@ -266,36 +276,42 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 32),
 
                         // Login Button
-                        SizedBox(
-                          height: 50,
-                          child: ElevatedButton(
-                            onPressed: isValidating ? null : _login,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _primaryColor,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              elevation: 2,
-                            ),
-                            child: isValidating
-                                ? const SizedBox(
-                                    height: 24,
-                                    width: 24,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text(
-                                    'INICIAR SESIÓN',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 1,
-                                    ),
+                        Consumer<auth_prov.AuthProvider>(
+                          builder: (context, authProvider, _) {
+                            return SizedBox(
+                              height: 50,
+                              child: ElevatedButton(
+                                onPressed: authProvider.isLoading
+                                    ? null
+                                    : _login,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _primaryColor,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                          ),
+                                  elevation: 2,
+                                ),
+                                child: authProvider.isLoading
+                                    ? const SizedBox(
+                                        height: 24,
+                                        width: 24,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Text(
+                                        'INICIAR SESIÓN',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 1,
+                                        ),
+                                      ),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
