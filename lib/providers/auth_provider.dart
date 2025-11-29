@@ -3,8 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 import '../models/user_info_dto.dart';
 import '../models/company_dto.dart';
-import '../models/role_dto.dart';
-import '../models/store_dto.dart';
 
 /// Provider para manejo de autenticación y estado del usuario
 ///
@@ -12,8 +10,6 @@ import '../models/store_dto.dart';
 /// - Usuario autenticado actual
 /// - Información del usuario (UserInfoDTO)
 /// - Empresa actual
-/// - Rol actual
-/// - Tienda actual
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
 
@@ -24,8 +20,8 @@ class AuthProvider extends ChangeNotifier {
   User? get currentUser => _authService.currentUser;
   UserInfoDTO? get currentUserInfo => _authService.currentUserInfo;
   CompanyDTO? get currentCompany => _authService.currentCompany;
-  RoleDTO? get currentRole => _authService.currentRole;
-  StoreDTO? get currentStore => _authService.currentStore;
+  String? get currentCompanyId => _authService.currentCompanyId;
+  String? get currentStoreId => _authService.currentStoreId;
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
@@ -53,44 +49,32 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Iniciar sesión con Google
-  Future<bool> signInWithGoogle() async {
-    try {
-      _setLoading(true);
-      _clearError();
-
-      final credential = await _authService.signInWithGoogle();
-
-      _setLoading(false);
-      notifyListeners();
-
-      return credential != null && credential.user != null;
-    } catch (e) {
-      _setError('Error al iniciar sesión con Google: ${e.toString()}');
-      _setLoading(false);
-      return false;
-    }
-  }
-
   /// Registrar nuevo usuario con empresa
   Future<bool> createCompanyManagerWithEmailAndPassword({
     required String email,
     required String password,
     required String companyName,
-    required String displayName,
+    String? displayName,
     String? phone,
+    String? companyEmail,
+    String? companyPhone,
+    String? companyAddress,
   }) async {
     try {
       _setLoading(true);
       _clearError();
 
+      // AuthService usa parámetros posicionales para los primeros 3
       final credential = await _authService
           .createCompanyManagerWithEmailAndPassword(
-            email: email,
-            password: password,
-            companyName: companyName,
+            email,
+            password,
+            companyName,
             displayName: displayName,
             phone: phone,
+            companyEmail: companyEmail,
+            companyPhone: companyPhone,
+            companyAddress: companyAddress,
           );
 
       _setLoading(false);
@@ -136,6 +120,29 @@ class AuthProvider extends ChangeNotifier {
       _setError('Error al recargar contexto: ${e.toString()}');
       _setLoading(false);
     }
+  }
+
+  /// Cambiar de tienda
+  Future<bool> switchStore(String storeId) async {
+    try {
+      _setLoading(true);
+      _clearError();
+
+      await _authService.switchStore(storeId);
+
+      _setLoading(false);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _setError('Error al cambiar de tienda: ${e.toString()}');
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  /// Verificar si tiene un permiso
+  Future<bool> hasPermission(String permission) async {
+    return await _authService.hasPermission(permission);
   }
 
   // Métodos privados para manejo de estado
