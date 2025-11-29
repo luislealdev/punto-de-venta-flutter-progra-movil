@@ -91,6 +91,39 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  void _signInWithGoogle() async {
+    setState(() {
+      isValidating = true;
+    });
+
+    try {
+      var credential = await auth!.signInWithGoogle();
+
+      setState(() {
+        isValidating = false;
+      });
+
+      if (credential != null && credential.user != null) {
+        _showSuccessMessage(
+          '¡Bienvenido ${credential.user!.displayName ?? ""}!',
+        );
+        Navigator.pushReplacementNamed(context, '/home');
+      } else {
+        // El usuario canceló el login
+        _showErrorMessage('Login cancelado');
+      }
+    } catch (e) {
+      setState(() {
+        isValidating = false;
+      });
+
+      print('Error en Google Sign-In: $e');
+      _showErrorMessage(
+        '❌ Error al iniciar sesión con Google.\nIntenta nuevamente.',
+      );
+    }
+  }
+
   String _getFirebaseErrorMessage(String errorCode) {
     switch (errorCode) {
       case 'user-not-found':
@@ -168,11 +201,7 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // Logo or Icon
-              Icon(
-                Icons.point_of_sale,
-                size: 80,
-                color: _primaryColor,
-              ),
+              Icon(Icons.point_of_sale, size: 80, color: _primaryColor),
               const SizedBox(height: 16),
               Text(
                 'Punto de Venta',
@@ -185,10 +214,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 8),
               Text(
                 'Inicia sesión para continuar',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
               ),
               const SizedBox(height: 32),
 
@@ -212,7 +238,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           keyboardType: TextInputType.emailAddress,
                           decoration: InputDecoration(
                             labelText: 'Correo Electrónico',
-                            prefixIcon: Icon(Icons.email_outlined, color: _primaryColor),
+                            prefixIcon: Icon(
+                              Icons.email_outlined,
+                              color: _primaryColor,
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -222,7 +251,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: _primaryColor, width: 2),
+                              borderSide: BorderSide(
+                                color: _primaryColor,
+                                width: 2,
+                              ),
                             ),
                             filled: true,
                             fillColor: Colors.grey[50],
@@ -236,10 +268,15 @@ class _LoginScreenState extends State<LoginScreen> {
                           obscureText: _obscurePassword,
                           decoration: InputDecoration(
                             labelText: 'Contraseña',
-                            prefixIcon: Icon(Icons.lock_outline, color: _primaryColor),
+                            prefixIcon: Icon(
+                              Icons.lock_outline,
+                              color: _primaryColor,
+                            ),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                _obscurePassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
                                 color: Colors.grey[600],
                               ),
                               onPressed: () {
@@ -257,7 +294,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: _primaryColor, width: 2),
+                              borderSide: BorderSide(
+                                color: _primaryColor,
+                                width: 2,
+                              ),
                             ),
                             filled: true,
                             fillColor: Colors.grey[50],
@@ -295,6 +335,52 @@ class _LoginScreenState extends State<LoginScreen> {
                                       letterSpacing: 1,
                                     ),
                                   ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Divider
+                        Row(
+                          children: [
+                            Expanded(child: Divider(color: Colors.grey[400])),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              child: Text(
+                                'O',
+                                style: TextStyle(color: Colors.grey[600]),
+                              ),
+                            ),
+                            Expanded(child: Divider(color: Colors.grey[400])),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Google Sign-In Button
+                        SizedBox(
+                          height: 50,
+                          child: OutlinedButton.icon(
+                            onPressed: isValidating ? null : _signInWithGoogle,
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: Colors.grey[300]!),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: Icon(
+                              Icons.g_mobiledata,
+                              size: 32,
+                              color: Colors.red[600],
+                            ),
+                            label: const Text(
+                              'Continuar con Google',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.black87,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                           ),
                         ),
                       ],
