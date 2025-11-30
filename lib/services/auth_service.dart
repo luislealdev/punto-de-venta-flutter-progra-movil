@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../models/user_info_dto.dart';
 import '../models/company_dto.dart';
 import '../models/role_dto.dart';
@@ -12,7 +13,7 @@ class AuthService {
   // Estado actual del usuario
   User? get currentUser => _auth.currentUser;
   String? get currentUserId => _auth.currentUser?.uid;
-  
+
   // Información del contexto actual
   String? _currentCompanyId;
   String? _currentStoreId;
@@ -29,17 +30,20 @@ class AuthService {
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   // Iniciar sesión
-  Future<UserCredential?> signInWithEmailAndPassword(String email, String password) async {
+  Future<UserCredential?> signInWithEmailAndPassword(
+    String email,
+    String password,
+  ) async {
     try {
       final credential = await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
-      
+
       if (credential.user != null) {
         await _loadUserContext(credential.user!.uid);
       }
-      
+
       return credential;
     } catch (e) {
       print('Error al iniciar sesión: $e');
@@ -47,20 +51,182 @@ class AuthService {
     }
   }
 
+  // Iniciar sesión con Google
+  Future<UserCredential?> signInWithGoogle() async {
+    try {
+      // Iniciar el flujo de autenticación de Google
+      // IMPORTANTE: Para web, necesitamos especificar el clientId
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        clientId:
+            '289080553746-l04d4g97m3e3p447u1b0fc4nnt8cjcn7.apps.googleusercontent.com',
+      );
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+
+      if (googleUser == null) {
+        // El usuario canceló el login
+        return null;
+      }
+
+      // Obtener los detalles de autenticación
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      // Crear credencial de Firebase
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Iniciar sesión en Firebase
+      final userCredential = await _auth.signInWithCredential(credential);
+
+      if (userCredential.user != null) {
+        // Verificar si el usuario ya existe en Firestore
+        final userExists = await _checkIfUserExists(userCredential.user!.uid);
+
+        if (!userExists) {
+          // Usuario nuevo de Google - crear perfil automático
+          await _createGoogleUserProfile(userCredential.user!);
+        }
+
+        // Cargar contexto del usuario
+        await _loadUserContext(userCredential.user!.uid);
+      }
+
+      return userCredential;
+    } catch (e) {
+      print('Error al iniciar sesión con Google: $e');
+      rethrow;
+    }
+  }
+
+  // Verificar si un usuario ya existe en Firestore
+  Future<bool> _checkIfUserExists(String userId) async {
+    try {
+      final companiesSnapshot = await _firestore.collection('companies').get();
+
+      for (var companyDoc in companiesSnapshot.docs) {
+        final userDoc = await companyDoc.reference
+            .collection('users')
+            .doc(userId)
+            .get();
+
+        if (userDoc.exists) {
+          return true;
+        }
+      }
+
+      return false;
+    } catch (e) {
+      print('Error al verificar usuario: $e');
+      return false;
+    }
+  }
+
+  // Crear perfil automático para usuario de Google
+  Future<void> _createGoogleUserProfile(User user) async {
+    try {
+      // 1. Crear empresa automáticamente
+      final companyRef = _firestore.collection('companies').doc();
+      final companyData = CompanyDTO(
+        id: companyRef.id,
+        name: '${user.displayName ?? user.email}\'s Company',
+        email: user.email,
+        isActive: true,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      await companyRef.set(companyData.toJson());
+
+      // 2. Crear rol de Manager con todos los permisos
+      final roleRef = companyRef.collection('roles').doc();
+      final roleData = RoleDTO(
+        id: roleRef.id,
+        name: 'Manager',
+        permissions: [
+          'products.view',
+          'products.create',
+          'products.edit',
+          'products.delete',
+          'customers.view',
+          'customers.create',
+          'customers.edit',
+          'customers.delete',
+          'sales.view',
+          'sales.create',
+          'sales.edit',
+          'sales.delete',
+          'providers.view',
+          'providers.create',
+          'providers.edit',
+          'providers.delete',
+          'stores.view',
+          'stores.create',
+          'stores.edit',
+          'stores.delete',
+          'users.view',
+          'users.create',
+          'users.edit',
+          'users.delete',
+          'reports.view',
+        ],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      await roleRef.set(roleData.toJson());
+
+      // 3. Crear tienda por defecto
+      final storeRef = companyRef.collection('stores').doc();
+      final storeData = StoreDTO(
+        id: storeRef.id,
+        name: 'Tienda Principal',
+        companyId: companyRef.id, // Agregar companyId requerido
+        isActive: true,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      await storeRef.set(storeData.toJson());
+
+      // 4. Crear perfil del usuario con datos de Google
+      final userInfo = UserInfoDTO(
+        userId: user.uid,
+        displayName: user.displayName ?? user.email,
+        email: user.email,
+        photoURL: user.photoURL, // Foto de Google
+        authProvider: 'google', // Indicar que es de Google
+        roleId: roleRef.id,
+        companyId: companyRef.id,
+        storeId: storeRef.id,
+        isActive: true,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      await companyRef.collection('users').doc(user.uid).set(userInfo.toJson());
+
+      print('Perfil de Google creado exitosamente para ${user.email}');
+    } catch (e) {
+      print('Error al crear perfil de Google: $e');
+      rethrow;
+    }
+  }
+
   // Registrar nuevo usuario
   Future<UserCredential?> createUserWithEmailAndPassword(
-    String email, 
-    String password, 
-    String companyId, 
-    String roleId,
-    {String? storeId, String? displayName, String? phone}
-  ) async {
+    String email,
+    String password,
+    String companyId,
+    String roleId, {
+    String? storeId,
+    String? displayName,
+    String? phone,
+  }) async {
     try {
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
-      
+
       if (credential.user != null) {
         // Crear el documento de información del usuario
         final userInfo = UserInfoDTO(
@@ -84,7 +250,7 @@ class AuthService {
 
         await _loadUserContext(credential.user!.uid);
       }
-      
+
       return credential;
     } catch (e) {
       print('Error al registrar usuario: $e');
@@ -94,22 +260,26 @@ class AuthService {
 
   // Registrar nuevo manager de empresa (crea empresa, rol y tienda automáticamente)
   Future<UserCredential?> createCompanyManagerWithEmailAndPassword(
-    String email, 
+    String email,
     String password,
-    String companyName,
-    {String? displayName, String? phone, String? companyEmail, String? companyPhone, String? companyAddress}
-  ) async {
+    String companyName, {
+    String? displayName,
+    String? phone,
+    String? companyEmail,
+    String? companyPhone,
+    String? companyAddress,
+  }) async {
     UserCredential? credential;
     try {
       credential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
-      
+
       if (credential.user != null) {
         final batch = _firestore.batch();
         final now = DateTime.now();
-        
+
         // 1. Crear la empresa
         final companyRef = _firestore.collection('companies').doc();
         final company = CompanyDTO(
@@ -119,7 +289,9 @@ class AuthService {
           phone: companyPhone,
           address: companyAddress,
           subscriptionPlan: 'basic',
-          subscriptionExpiresAt: now.add(const Duration(days: 30)), // 30 días gratis
+          subscriptionExpiresAt: now.add(
+            const Duration(days: 30),
+          ), // 30 días gratis
           isActive: true,
           createdAt: now,
           updatedAt: now,
@@ -133,16 +305,36 @@ class AuthService {
           name: 'Manager',
           description: 'Administrador de la empresa con todos los permisos',
           permissions: [
-            'users.read', 'users.write', 'users.delete',
-            'products.read', 'products.write', 'products.delete',
-            'inventory.read', 'inventory.write', 'inventory.delete',
-            'sales.read', 'sales.write', 'sales.delete',
-            'purchases.read', 'purchases.write', 'purchases.delete',
-            'providers.read', 'providers.write', 'providers.delete',
-            'customers.read', 'customers.write', 'customers.delete',
-            'categories.read', 'categories.write', 'categories.delete',
-            'payments.read', 'payments.write', 'payments.delete',
-            'stores.read', 'stores.write', 'stores.delete',
+            'users.read',
+            'users.write',
+            'users.delete',
+            'products.read',
+            'products.write',
+            'products.delete',
+            'inventory.read',
+            'inventory.write',
+            'inventory.delete',
+            'sales.read',
+            'sales.write',
+            'sales.delete',
+            'purchases.read',
+            'purchases.write',
+            'purchases.delete',
+            'providers.read',
+            'providers.write',
+            'providers.delete',
+            'customers.read',
+            'customers.write',
+            'customers.delete',
+            'categories.read',
+            'categories.write',
+            'categories.delete',
+            'payments.read',
+            'payments.write',
+            'payments.delete',
+            'stores.read',
+            'stores.write',
+            'stores.delete',
             'reports.read',
           ],
           createdAt: now,
@@ -166,7 +358,9 @@ class AuthService {
         batch.set(storeRef, defaultStore.toJson());
 
         // 4. Crear el usuario manager
-        final userRef = companyRef.collection('users').doc(credential.user!.uid);
+        final userRef = companyRef
+            .collection('users')
+            .doc(credential.user!.uid);
         final userInfo = UserInfoDTO(
           userId: credential.user!.uid,
           displayName: displayName ?? credential.user!.email,
@@ -182,11 +376,11 @@ class AuthService {
 
         // Ejecutar todas las operaciones
         await batch.commit();
-        
+
         // Cargar el contexto del usuario
         await _loadUserContext(credential.user!.uid);
       }
-      
+
       return credential;
     } catch (e) {
       print('Error al registrar manager de empresa: $e');
@@ -214,7 +408,7 @@ class AuthService {
       // Buscar la información del usuario en todas las empresas
       // (En un escenario real, podrías almacenar esto en un documento separado)
       final companiesSnapshot = await _firestore.collection('companies').get();
-      
+
       for (final companyDoc in companiesSnapshot.docs) {
         final userDoc = await _firestore
             .collection('companies')
@@ -222,7 +416,7 @@ class AuthService {
             .collection('users')
             .doc(userId)
             .get();
-        
+
         if (userDoc.exists) {
           _currentCompanyId = companyDoc.id;
           _currentUserInfo = UserInfoDTO.fromJson({
@@ -230,13 +424,13 @@ class AuthService {
             ...userDoc.data()!,
           });
           _currentStoreId = _currentUserInfo?.storeId;
-          
+
           // Cargar información de la empresa
           _currentCompany = CompanyDTO.fromJson({
             'id': companyDoc.id,
             ...companyDoc.data(),
           });
-          
+
           break;
         }
       }
@@ -263,10 +457,10 @@ class AuthService {
           .collection('users')
           .doc(currentUserId)
           .update({
-        'storeId': storeId,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-      
+            'storeId': storeId,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+
       _currentStoreId = storeId;
       if (_currentUserInfo != null) {
         _currentUserInfo = UserInfoDTO(
@@ -288,7 +482,7 @@ class AuthService {
   // Verificar si el usuario tiene permisos para una acción específica
   Future<bool> hasPermission(String permission) async {
     if (_currentUserInfo?.roleId == null) return false;
-    
+
     // Aquí implementarías la lógica de permisos basada en roles
     // Por ahora, asumimos que todos los usuarios tienen permisos básicos
     return true;
@@ -320,16 +514,19 @@ class AuthService {
   Future<void> switchCompany(String companyId) async {
     if (currentUserId != null) {
       _currentCompanyId = companyId;
-      
+
       // Cargar nueva información de la empresa
-      final companyDoc = await _firestore.collection('companies').doc(companyId).get();
+      final companyDoc = await _firestore
+          .collection('companies')
+          .doc(companyId)
+          .get();
       if (companyDoc.exists) {
         _currentCompany = CompanyDTO.fromJson({
           'id': companyDoc.id,
           ...companyDoc.data()!,
         });
       }
-      
+
       // Cargar información del usuario en esta empresa
       final userDoc = await _firestore
           .collection('companies')
@@ -337,7 +534,7 @@ class AuthService {
           .collection('users')
           .doc(currentUserId)
           .get();
-      
+
       if (userDoc.exists) {
         _currentUserInfo = UserInfoDTO.fromJson({
           'userId': userDoc.id,

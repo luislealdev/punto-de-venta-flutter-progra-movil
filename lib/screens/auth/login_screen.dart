@@ -94,6 +94,35 @@ class _LoginScreenContentState extends State<_LoginScreenContent> {
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    final authProvider = context.read<auth_prov.AuthProvider>();
+
+    try {
+      final success = await authProvider.signInWithGoogle();
+
+      if (success && mounted) {
+        _showSuccessMessage('¡Bienvenido! Inicio de sesión exitoso con Google');
+        Navigator.pushReplacementNamed(context, '/home');
+      } else if (!success && mounted) {
+        // El usuario canceló el login o hubo un error
+        if (authProvider.errorMessage != null) {
+          _showErrorMessage(authProvider.errorMessage!);
+        }
+      }
+    } catch (e) {
+      print('Error en Google Sign-In: $e');
+
+      if (e.toString().contains('popup_closed_by_user')) {
+        // Usuario canceló - no mostrar error
+        return;
+      }
+
+      _showErrorMessage(
+        'Error al iniciar sesión con Google. Por favor intenta nuevamente.',
+      );
+    }
+  }
+
   String _getFirebaseErrorMessage(String errorCode) {
     switch (errorCode) {
       case 'user-not-found':
@@ -171,22 +200,22 @@ class _LoginScreenContentState extends State<_LoginScreenContent> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // Logo or Icon
-              Icon(Icons.point_of_sale, size: 80, color: _primaryColor),
-              const SizedBox(height: 16),
+              Icon(Icons.point_of_sale, size: 64, color: _primaryColor),
+              const SizedBox(height: 12),
               Text(
                 'Punto de Venta',
                 style: TextStyle(
-                  fontSize: 28,
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: _primaryColor,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
               Text(
                 'Inicia sesión para continuar',
-                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 20),
 
               // Login Card
               ConstrainedBox(
@@ -318,7 +347,69 @@ class _LoginScreenContentState extends State<_LoginScreenContent> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+
+              // Divider "O"
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 500),
+                child: Row(
+                  children: [
+                    const Expanded(child: Divider()),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        'O',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const Expanded(child: Divider()),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Google Sign-In Button
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 500),
+                child: Consumer<auth_prov.AuthProvider>(
+                  builder: (context, authProvider, _) {
+                    return SizedBox(
+                      height: 50,
+                      child: OutlinedButton.icon(
+                        onPressed: authProvider.isLoading
+                            ? null
+                            : _signInWithGoogle,
+                        icon: Image.network(
+                          'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
+                          height: 24,
+                          width: 24,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(Icons.g_mobiledata, size: 24);
+                          },
+                        ),
+                        label: const Text(
+                          'Continuar con Google',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.grey[800],
+                          side: BorderSide(color: Colors.grey[300]!),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
 
               // Register Link
               Row(

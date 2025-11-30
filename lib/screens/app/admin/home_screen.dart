@@ -268,6 +268,14 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const Divider(),
           ListTile(
+            leading: const Icon(Icons.person_outlined),
+            title: const Text('Mi Perfil'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, '/profile');
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.settings_outlined),
             title: const Text('Configuración'),
             onTap: () {},

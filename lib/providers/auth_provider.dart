@@ -49,6 +49,25 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Iniciar sesión con Google
+  Future<bool> signInWithGoogle() async {
+    try {
+      _setLoading(true);
+      _clearError();
+
+      final credential = await _authService.signInWithGoogle();
+
+      _setLoading(false);
+      notifyListeners();
+
+      return credential != null && credential.user != null;
+    } catch (e) {
+      _setError('Error al iniciar sesión con Google: ${e.toString()}');
+      _setLoading(false);
+      return false;
+    }
+  }
+
   /// Registrar nuevo usuario con empresa
   Future<bool> createCompanyManagerWithEmailAndPassword({
     required String email,
