@@ -932,35 +932,24 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                                 decoration: BoxDecoration(
                                   color: _accentColor.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: imageUrl != null
-                                      ? Image.network(
-                                          imageUrl,
+                                  image: imageUrl != null
+                                      ? DecorationImage(
+                                          image: NetworkImage(imageUrl),
                                           fit: BoxFit.cover,
-                                          width: double.infinity,
-                                          errorBuilder:
-                                              (context, error, stackTrace) {
-                                                return Center(
-                                                  child: Icon(
-                                                    Icons.inventory_2,
-                                                    color: _accentColor,
-                                                    size: 20,
-                                                  ),
-                                                );
-                                              },
                                         )
-                                      : Center(
-                                          child: Icon(
-                                            isProduct
-                                                ? Icons.inventory_2
-                                                : Icons.style,
-                                            color: _accentColor,
-                                            size: 20,
-                                          ),
-                                        ),
+                                      : null,
                                 ),
+                                child: imageUrl == null
+                                    ? Center(
+                                        child: Icon(
+                                          isProduct
+                                              ? Icons.inventory_2
+                                              : Icons.style,
+                                          color: _accentColor,
+                                          size: 20,
+                                        ),
+                                      )
+                                    : null,
                               ),
                               const SizedBox(height: 6),
                               Text(
