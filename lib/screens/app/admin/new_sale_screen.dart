@@ -880,12 +880,30 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                                   color: _accentColor.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: Center(
-                                  child: Icon(
-                                    isProduct ? Icons.inventory_2 : Icons.style,
-                                    color: _accentColor,
-                                    size: 20,
-                                  ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: (isProduct && (item as ProductDTO).imageUrl != null)
+                                      ? Image.network(
+                                          (item as ProductDTO).imageUrl!,
+                                          fit: BoxFit.cover,
+                                          width: double.infinity,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return Center(
+                                              child: Icon(
+                                                Icons.inventory_2,
+                                                color: _accentColor,
+                                                size: 20,
+                                              ),
+                                            );
+                                          },
+                                        )
+                                      : Center(
+                                          child: Icon(
+                                            isProduct ? Icons.inventory_2 : Icons.style,
+                                            color: _accentColor,
+                                            size: 20,
+                                          ),
+                                        ),
                                 ),
                               ),
                               const SizedBox(height: 6),
