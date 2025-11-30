@@ -19,7 +19,6 @@ import 'package:punto_de_venta/screens/app/admin/stores_screen.dart';
 import 'package:punto_de_venta/screens/auth/login_screen.dart';
 import 'package:punto_de_venta/screens/auth/register_screen.dart';
 import 'package:punto_de_venta/screens/onboarding/onboarding_screen.dart';
-import 'package:punto_de_venta/services/onboarding_service.dart';
 import 'package:punto_de_venta/utils/theme_app.dart';
 import 'package:punto_de_venta/utils/value_listener.dart';
 
@@ -35,16 +34,11 @@ void main() async {
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Verificar si ya vio el onboarding
-  final hasSeenOnboarding = await OnboardingService.hasSeenOnboarding();
-
-  runApp(MyApp(showOnboarding: !hasSeenOnboarding));
+  runApp(const MyApp());
 }
 
 class MyApp extends StatefulWidget {
-  final bool showOnboarding;
-
-  const MyApp({super.key, this.showOnboarding = false});
+  const MyApp({super.key});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -58,7 +52,7 @@ class _MyAppState extends State<MyApp> {
       builder: (context, value, _) {
         return MaterialApp(
           theme: value ? ThemeApp.darkTheme() : ThemeApp.lightTheme(),
-          initialRoute: widget.showOnboarding ? '/onboarding' : '/login',
+          initialRoute: '/login',
           routes: {
             '/onboarding': (context) => const OnboardingScreen(),
             '/login': (context) => const LoginScreen(),

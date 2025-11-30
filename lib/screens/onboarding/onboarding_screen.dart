@@ -168,10 +168,11 @@ class OnboardingScreen extends StatelessWidget {
         height: 1.5,
       ),
       imagePadding: const EdgeInsets.only(top: 80, bottom: 40),
-      pageColor: Colors.transparent,
       bodyPadding: const EdgeInsets.symmetric(horizontal: 24),
       titlePadding: const EdgeInsets.only(top: 20, bottom: 16),
       contentMargin: const EdgeInsets.symmetric(horizontal: 16),
+      // Removed pageColor to fix null assertion error
+      // Using boxDecoration with gradient instead
       boxDecoration: BoxDecoration(gradient: gradient),
     );
   }
@@ -180,9 +181,9 @@ class OnboardingScreen extends StatelessWidget {
     // Marcar onboarding como completado
     await OnboardingService.completeOnboarding();
 
-    // Navegar al login
+    // Navegar al home (ya está logueado)
     if (context.mounted) {
-      Navigator.of(context).pushReplacementNamed('/login');
+      Navigator.of(context).pushReplacementNamed('/home');
     }
   }
 }
