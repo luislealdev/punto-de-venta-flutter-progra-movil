@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:punto_de_venta/services/auth_service.dart';
+import 'package:punto_de_venta/services/onboarding_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -63,8 +64,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
         _showSuccessMessage('¡Bienvenido de vuelta!');
 
-        // Navegar a la pantalla principal
-        Navigator.pushReplacementNamed(context, '/home');
+        // Verificar si ya vio el onboarding
+        final hasSeenOnboarding = await OnboardingService.hasSeenOnboarding();
+        print('🎯 Onboarding status: hasSeenOnboarding = $hasSeenOnboarding');
+
+        // Navegar según si ya vio el onboarding
+        if (hasSeenOnboarding) {
+          print('✅ Usuario YA vio onboarding → Navegando a /home');
+          Navigator.pushReplacementNamed(context, '/home');
+        } else {
+          print('🎉 Usuario NUEVO → Navegando a /onboarding');
+          Navigator.pushReplacementNamed(context, '/onboarding');
+        }
       } else {
         _showErrorMessage('Error al iniciar sesión. Intenta nuevamente.');
       }
@@ -88,6 +99,60 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       _showErrorMessage(errorMessage);
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    try {
+      setState(() {
+        isValidating = true;
+      });
+
+      final authService = AuthService();
+      final credential = await authService.signInWithGoogle();
+
+      setState(() {
+        isValidating = false;
+      });
+
+      if (credential != null && credential.user != null) {
+        print('Google Sign-In exitoso: ${credential.user!.uid}');
+
+        _showSuccessMessage('¡Bienvenido!');
+
+        // Verificar si ya vio el onboarding
+        final hasSeenOnboarding = await OnboardingService.hasSeenOnboarding();
+        print(
+          '🎯 Onboarding status (Google): hasSeenOnboarding = $hasSeenOnboarding',
+        );
+
+        // Navegar según si ya vio el onboarding
+        if (hasSeenOnboarding) {
+          print('✅ Usuario YA vio onboarding → Navegando a /home');
+          Navigator.pushReplacementNamed(context, '/home');
+        } else {
+          print('🎉 Usuario NUEVO → Navegando a /onboarding');
+          Navigator.pushReplacementNamed(context, '/onboarding');
+        }
+      }
+    } on Exception catch (e) {
+      setState(() {
+        isValidating = false;
+      });
+
+      // Manejar el caso específico de cuando el usuario cierra el popup
+      String errorString = e.toString();
+      if (errorString.contains('popup_closed_by_user') ||
+          errorString.contains('user-cancelled')) {
+        // No mostrar error si el usuario canceló intencionalmente
+        print('Usuario canceló el login con Google');
+        return;
+      }
+
+      print('Error en Google Sign-In: $e');
+      _showErrorMessage(
+        'Error al iniciar sesión con Google. Intenta nuevamente.',
+      );
     }
   }
 
@@ -168,11 +233,7 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // Logo or Icon
-              Icon(
-                Icons.point_of_sale,
-                size: 80,
-                color: _primaryColor,
-              ),
+              Icon(Icons.point_of_sale, size: 80, color: _primaryColor),
               const SizedBox(height: 16),
               Text(
                 'Punto de Venta',
@@ -185,10 +246,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 8),
               Text(
                 'Inicia sesión para continuar',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
+                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
               ),
               const SizedBox(height: 32),
 
@@ -212,7 +270,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           keyboardType: TextInputType.emailAddress,
                           decoration: InputDecoration(
                             labelText: 'Correo Electrónico',
-                            prefixIcon: Icon(Icons.email_outlined, color: _primaryColor),
+                            prefixIcon: Icon(
+                              Icons.email_outlined,
+                              color: _primaryColor,
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -222,7 +283,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: _primaryColor, width: 2),
+                              borderSide: BorderSide(
+                                color: _primaryColor,
+                                width: 2,
+                              ),
                             ),
                             filled: true,
                             fillColor: Colors.grey[50],
@@ -236,10 +300,15 @@ class _LoginScreenState extends State<LoginScreen> {
                           obscureText: _obscurePassword,
                           decoration: InputDecoration(
                             labelText: 'Contraseña',
-                            prefixIcon: Icon(Icons.lock_outline, color: _primaryColor),
+                            prefixIcon: Icon(
+                              Icons.lock_outline,
+                              color: _primaryColor,
+                            ),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                _obscurePassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
                                 color: Colors.grey[600],
                               ),
                               onPressed: () {
@@ -257,7 +326,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: _primaryColor, width: 2),
+                              borderSide: BorderSide(
+                                color: _primaryColor,
+                                width: 2,
+                              ),
                             ),
                             filled: true,
                             fillColor: Colors.grey[50],
@@ -302,7 +374,63 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+
+              // Divider "O"
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 450),
+                child: Row(
+                  children: [
+                    const Expanded(child: Divider()),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        'O',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const Expanded(child: Divider()),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Google Sign-In Button
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 450),
+                child: SizedBox(
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    onPressed: isValidating ? null : _signInWithGoogle,
+                    icon: Image.network(
+                      'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
+                      height: 24,
+                      width: 24,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Icon(Icons.g_mobiledata, size: 24);
+                      },
+                    ),
+                    label: const Text(
+                      'Continuar con Google',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.grey[800],
+                      side: BorderSide(color: Colors.grey[300]!),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
 
               // Register Link
               Row(

@@ -36,7 +36,7 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
   List<ProductVarietyDTO> _varieties = [];
   List<CustomerDTO> _customers = [];
   List<SaleItemModel> _cartItems = [];
-  
+
   // Estados de UI
   bool _isLoading = true;
   String _searchQuery = '';
@@ -44,11 +44,11 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
   CustomerDTO? _selectedCustomer;
   String _paymentMethod = 'cash'; // cash, credit
   String _saleStep = 'products'; // products, customer, payment, summary
-  
+
   // Modo edición
   bool _isEditMode = false;
   SaleDTO? _saleToEdit;
-  
+
   // Controladores
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
@@ -62,9 +62,10 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    
+
     // Verificar si se está en modo edición
-    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final args =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     if (args != null && args['editMode'] == true) {
       _isEditMode = true;
       _saleToEdit = args['saleToEdit'] as SaleDTO?;
@@ -77,13 +78,13 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
   Future<void> _initializeScreen() async {
     try {
       print('🔍 Iniciando pantalla de Nueva Venta...');
-      
+
       // Primero inicializar el contexto del usuario
       await _authService.initializeContext();
-      
+
       final userInfo = _authService.currentUserInfo;
       print('👤 UserInfo: ${userInfo?.companyId}');
-      
+
       if (userInfo != null && userInfo.companyId != null) {
         setState(() => _companyId = userInfo.companyId!);
         print('🏢 CompanyId establecido: $_companyId');
@@ -95,7 +96,9 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Error: No se pudo obtener la información de la empresa'),
+              content: Text(
+                'Error: No se pudo obtener la información de la empresa',
+              ),
               backgroundColor: Colors.red,
             ),
           );
@@ -121,11 +124,11 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
       setState(() => _isLoading = false);
       return;
     }
-    
+
     try {
       print('📊 Cargando datos para companyId: $_companyId');
       setState(() => _isLoading = true);
-      
+
       final results = await Future.wait([
         _productService.getActiveProducts(_companyId),
         _varietyService.getActiveVarieties(_companyId),
@@ -164,43 +167,54 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
 
     try {
       // Cargar items de la venta
-      final saleItems = await _saleService.getSaleItems(_companyId, _saleToEdit!.id!);
-      
+      final saleItems = await _saleService.getSaleItems(
+        _companyId,
+        _saleToEdit!.id!,
+      );
+
       // Convertir SaleItemDTO a SaleItemModel para el carrito
       final cartItems = <SaleItemModel>[];
-      
+
       for (final item in saleItems) {
         String itemName = 'Producto/Variedad';
         String itemId = '';
-        
+
         if (item.productId != null) {
           // Es un producto
-          final product = _products.where((p) => p.id == item.productId).firstOrNull;
+          final product = _products
+              .where((p) => p.id == item.productId)
+              .firstOrNull;
           itemName = product?.name ?? 'Producto eliminado';
           itemId = 'product_${item.productId}';
-          
-          cartItems.add(SaleItemModel(
-            id: itemId,
-            productId: item.productId,
-            name: itemName,
-            quantity: item.quantity ?? 1,
-            unitPrice: item.unitPrice ?? 0.0,
-            subtotal: (item.quantity ?? 1) * (item.unitPrice ?? 0.0),
-          ));
+
+          cartItems.add(
+            SaleItemModel(
+              id: itemId,
+              productId: item.productId,
+              name: itemName,
+              quantity: item.quantity ?? 1,
+              unitPrice: item.unitPrice ?? 0.0,
+              subtotal: (item.quantity ?? 1) * (item.unitPrice ?? 0.0),
+            ),
+          );
         } else if (item.productVarietyId != null) {
           // Es una variedad
-          final variety = _varieties.where((v) => v.id == item.productVarietyId).firstOrNull;
+          final variety = _varieties
+              .where((v) => v.id == item.productVarietyId)
+              .firstOrNull;
           itemName = variety?.name ?? 'Variedad eliminada';
           itemId = 'variety_${item.productVarietyId}';
-          
-          cartItems.add(SaleItemModel(
-            id: itemId,
-            productVarietyId: item.productVarietyId,
-            name: itemName,
-            quantity: item.quantity ?? 1,
-            unitPrice: item.unitPrice ?? 0.0,
-            subtotal: (item.quantity ?? 1) * (item.unitPrice ?? 0.0),
-          ));
+
+          cartItems.add(
+            SaleItemModel(
+              id: itemId,
+              productVarietyId: item.productVarietyId,
+              name: itemName,
+              quantity: item.quantity ?? 1,
+              unitPrice: item.unitPrice ?? 0.0,
+              subtotal: (item.quantity ?? 1) * (item.unitPrice ?? 0.0),
+            ),
+          );
         }
       }
 
@@ -213,7 +227,10 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
           );
         } catch (e) {
           // Cliente no encontrado en la lista actual
-          selectedCustomer = await _customerService.getById(_companyId, _saleToEdit!.customerId!);
+          selectedCustomer = await _customerService.getById(
+            _companyId,
+            _saleToEdit!.customerId!,
+          );
         }
       }
 
@@ -225,7 +242,6 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
       });
 
       print('✅ Venta cargada para edición: ${_cartItems.length} items');
-      
     } catch (e) {
       print('💥 Error cargando venta para edición: $e');
       if (mounted) {
@@ -241,7 +257,7 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
 
   List<dynamic> get _filteredItems {
     List<dynamic> items = [];
-    
+
     switch (_selectedFilter) {
       case 'products':
         items = _products;
@@ -258,7 +274,9 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
     if (_searchQuery.isEmpty) return items;
 
     return items.where((item) {
-      final name = item is ProductDTO ? item.name : (item as ProductVarietyDTO).name;
+      final name = item is ProductDTO
+          ? item.name
+          : (item as ProductVarietyDTO).name;
       return name!.toLowerCase().contains(_searchQuery.toLowerCase());
     }).toList();
   }
@@ -278,8 +296,8 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
   Future<void> _showQuantityModal(dynamic item) async {
     final isProduct = item is ProductDTO;
     final name = isProduct ? item.name : (item as ProductVarietyDTO).name;
-    final basePrice = isProduct 
-        ? item.basePrice 
+    final basePrice = isProduct
+        ? item.basePrice
         : (item as ProductVarietyDTO).price;
 
     await showModalBottomSheet(
@@ -292,7 +310,9 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
         onAddToCart: (quantity, unitPrice) {
           final newItem = SaleItemModel(
             id: DateTime.now().millisecondsSinceEpoch.toString(),
-            productId: isProduct ? item.id : (item as ProductVarietyDTO).productId,
+            productId: isProduct
+                ? item.id
+                : (item as ProductVarietyDTO).productId,
             productVarietyId: isProduct ? null : (item as ProductVarietyDTO).id,
             name: name,
             quantity: quantity,
@@ -302,16 +322,19 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
 
           setState(() {
             // Verificar si el item ya existe en el carrito
-            final existingIndex = _cartItems.indexWhere((cartItem) =>
-                cartItem.productId == newItem.productId &&
-                cartItem.productVarietyId == newItem.productVarietyId &&
-                cartItem.unitPrice == newItem.unitPrice);
+            final existingIndex = _cartItems.indexWhere(
+              (cartItem) =>
+                  cartItem.productId == newItem.productId &&
+                  cartItem.productVarietyId == newItem.productVarietyId &&
+                  cartItem.unitPrice == newItem.unitPrice,
+            );
 
             if (existingIndex >= 0) {
               // Actualizar cantidad
               _cartItems[existingIndex] = _cartItems[existingIndex].copyWith(
                 quantity: _cartItems[existingIndex].quantity + quantity,
-                subtotal: (_cartItems[existingIndex].quantity + quantity) * unitPrice,
+                subtotal:
+                    (_cartItems[existingIndex].quantity + quantity) * unitPrice,
               );
             } else {
               // Agregar nuevo item
@@ -387,9 +410,7 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
       // Crear la venta actualizada
@@ -404,7 +425,9 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
         tax: 0.0,
         total: _subtotal,
         paymentMethod: _paymentMethod,
-        notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+        notes: _notesController.text.trim().isEmpty
+            ? null
+            : _notesController.text.trim(),
         saleDate: _saleToEdit!.saleDate,
         status: 'completed',
         createdAt: _saleToEdit!.createdAt,
@@ -412,14 +435,18 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
       );
 
       // Crear los items de la venta actualizados
-      final saleItems = _cartItems.map((cartItem) => SaleItemDTO(
-        saleId: _saleToEdit!.id!,
-        productId: cartItem.productId,
-        productVarietyId: cartItem.productVarietyId,
-        quantity: cartItem.quantity,
-        unitPrice: cartItem.unitPrice,
-        subtotal: cartItem.subtotal,
-      )).toList();
+      final saleItems = _cartItems
+          .map(
+            (cartItem) => SaleItemDTO(
+              saleId: _saleToEdit!.id!,
+              productId: cartItem.productId,
+              productVarietyId: cartItem.productVarietyId,
+              quantity: cartItem.quantity,
+              unitPrice: cartItem.unitPrice,
+              subtotal: cartItem.subtotal,
+            ),
+          )
+          .toList();
 
       // Actualizar la venta en Firestore
       await _saleService.updateSaleWithItems(
@@ -437,20 +464,21 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
       // Mostrar éxito y regresar con resultado
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Venta ${_saleToEdit!.number} actualizada exitosamente'),
+          content: Text(
+            'Venta ${_saleToEdit!.number} actualizada exitosamente',
+          ),
           backgroundColor: _accentColor,
           duration: const Duration(seconds: 3),
         ),
       );
-      
-      Navigator.pop(context, true); // true indica que se editó exitosamente
 
+      Navigator.pop(context, true); // true indica que se editó exitosamente
     } catch (e) {
       // Cerrar loading si está abierto
       if (Navigator.canPop(context)) {
         Navigator.pop(context);
       }
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error al actualizar venta: $e'),
@@ -467,14 +495,14 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
       if (_paymentMethod == 'credit' && _selectedCustomer != null) {
         final customerCurrentDebt = _selectedCustomer!.currentDebt ?? 0.0;
         final customerCreditLimit = _selectedCustomer!.creditLimit ?? 0.0;
-        
+
         if (customerCurrentDebt + _subtotal > customerCreditLimit) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
                 'El límite de crédito será excedido. Límite: \$${customerCreditLimit.toStringAsFixed(2)}, '
                 'Deuda actual: \$${customerCurrentDebt.toStringAsFixed(2)}, '
-                'Total venta: \$${_subtotal.toStringAsFixed(2)}'
+                'Total venta: \$${_subtotal.toStringAsFixed(2)}',
               ),
               backgroundColor: Colors.red,
               duration: const Duration(seconds: 5),
@@ -488,18 +516,17 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
       // Generar número de venta simple sin consultas complejas
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final saleNumber = 'V${timestamp.toString().substring(timestamp.toString().length - 8)}';
+      final saleNumber =
+          'V${timestamp.toString().substring(timestamp.toString().length - 8)}';
       final storeId = 'default-store'; // Tienda por defecto
-      
+
       print('🔢 Generando venta con número: $saleNumber');
-      
+
       // Crear la venta
       final sale = SaleDTO(
         number: saleNumber,
@@ -511,20 +538,26 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
         tax: 0.0,
         total: _subtotal,
         paymentMethod: _paymentMethod,
-        notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
+        notes: _notesController.text.trim().isEmpty
+            ? null
+            : _notesController.text.trim(),
         saleDate: DateTime.now(),
         status: 'completed',
       );
 
       // Crear los items de la venta
-      final saleItems = _cartItems.map((cartItem) => SaleItemDTO(
-        saleId: '', // Se asignará en el servicio
-        productId: cartItem.productId,
-        productVarietyId: cartItem.productVarietyId,
-        quantity: cartItem.quantity,
-        unitPrice: cartItem.unitPrice,
-        subtotal: cartItem.subtotal,
-      )).toList();
+      final saleItems = _cartItems
+          .map(
+            (cartItem) => SaleItemDTO(
+              saleId: '', // Se asignará en el servicio
+              productId: cartItem.productId,
+              productVarietyId: cartItem.productVarietyId,
+              quantity: cartItem.quantity,
+              unitPrice: cartItem.unitPrice,
+              subtotal: cartItem.subtotal,
+            ),
+          )
+          .toList();
 
       // Guardar la venta en Firestore
       final saleId = await _saleService.createSaleWithItems(
@@ -532,7 +565,7 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
         sale,
         saleItems,
       );
-      
+
       print('✅ Venta creada con ID: $saleId');
       print('📍 Venta guardada en: companies/$_companyId/sales/$saleId');
 
@@ -541,8 +574,13 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
       if (_paymentMethod == 'credit' && _selectedCustomer != null) {
         await _updateCustomerDebt(_selectedCustomer!.id!, _subtotal);
         // Obtener el cliente actualizado para WhatsApp
-        updatedCustomer = await _customerService.getById(_companyId, _selectedCustomer!.id!);
-        print('💳 Cliente actualizado - Deuda: \$${updatedCustomer?.currentDebt ?? 0}');
+        updatedCustomer = await _customerService.getById(
+          _companyId,
+          _selectedCustomer!.id!,
+        );
+        print(
+          '💳 Cliente actualizado - Deuda: \$${updatedCustomer?.currentDebt ?? 0}',
+        );
       }
 
       // Cerrar loading
@@ -561,14 +599,14 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
           duration: const Duration(seconds: 3),
         ),
       );
-      
+
       Navigator.pop(context);
     } catch (e) {
       // Cerrar loading si está abierto
       if (Navigator.canPop(context)) {
         Navigator.pop(context);
       }
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error al crear venta: $e'),
@@ -598,9 +636,11 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
           isActive: customer.isActive,
           createdAt: customer.createdAt,
         );
-        
+
         await _customerService.update(_companyId, customerId, updatedCustomer);
-        print('✅ Deuda del cliente actualizada: +\$${amount.toStringAsFixed(2)}');
+        print(
+          '✅ Deuda del cliente actualizada: +\$${amount.toStringAsFixed(2)}',
+        );
       }
     } catch (e) {
       print('❌ Error al actualizar deuda del cliente: $e');
@@ -608,36 +648,42 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
     }
   }
 
-  Future<void> _sendWhatsAppNotification(String saleNumber, CustomerDTO customer) async {
+  Future<void> _sendWhatsAppNotification(
+    String saleNumber,
+    CustomerDTO customer,
+  ) async {
     try {
       if (customer.phone == null || customer.phone!.isEmpty) {
         print('⚠️ Cliente no tiene teléfono registrado');
         return;
       }
-      
+
       final message = WhatsAppService.buildSaleReceiptMessage(
         saleNumber: saleNumber,
         customer: customer,
         total: _subtotal,
         paymentMethod: _paymentMethod,
-        items: _cartItems.map((item) => SaleItemInfo(
-          name: item.name,
-          quantity: item.quantity,
-          subtotal: item.subtotal,
-        )).toList(),
+        items: _cartItems
+            .map(
+              (item) => SaleItemInfo(
+                name: item.name,
+                quantity: item.quantity,
+                subtotal: item.subtotal,
+              ),
+            )
+            .toList(),
       );
-      
+
       final success = await WhatsAppService.sendMessage(
         phoneNumber: customer.phone!,
         message: message,
       );
-      
+
       if (success) {
         print('✅ WhatsApp enviado exitosamente a ${customer.name}');
       } else {
         print('❌ Error enviando WhatsApp a ${customer.name}');
       }
-      
     } catch (e) {
       print('❌ Error en WhatsApp: $e');
       // No fallar la venta por problemas de WhatsApp
@@ -686,65 +732,59 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
               ),
             )
           : _companyId.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 64,
-                        color: Colors.grey[400],
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'No se pudo cargar la información de la empresa',
-                        style: TextStyle(fontSize: 16, color: Colors.grey),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _initializeScreen,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _primaryColor,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: const Text('Reintentar'),
-                      ),
-                    ],
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'No se pudo cargar la información de la empresa',
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
                   ),
-                )
-              : Column(
-                  children: [
-                    Expanded(
-                      child: _buildStepContent(),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _initializeScreen,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _primaryColor,
+                      foregroundColor: Colors.white,
                     ),
-                    _buildBottomBar(),
-                  ],
-                ),
+                    child: const Text('Reintentar'),
+                  ),
+                ],
+              ),
+            )
+          : Column(
+              children: [
+                Expanded(child: _buildStepContent()),
+                _buildBottomBar(),
+              ],
+            ),
     );
   }
 
   Widget _buildStepIndicator(String title, String step) {
     final isActive = _saleStep == step;
     final isCompleted = _getStepIndex(_saleStep) > _getStepIndex(step);
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: isActive 
-            ? Colors.white 
-            : isCompleted 
-                ? _accentColor 
-                : Colors.white.withOpacity(0.2),
+        color: isActive
+            ? Colors.white
+            : isCompleted
+            ? _accentColor
+            : Colors.white.withOpacity(0.2),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Text(
         title,
         style: TextStyle(
-          color: isActive 
-              ? _primaryColor 
-              : isCompleted 
-                  ? Colors.white 
-                  : Colors.white.withOpacity(0.7),
+          color: isActive
+              ? _primaryColor
+              : isCompleted
+              ? Colors.white
+              : Colors.white.withOpacity(0.7),
           fontSize: 12,
           fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
         ),
@@ -764,11 +804,16 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
 
   int _getStepIndex(String step) {
     switch (step) {
-      case 'products': return 0;
-      case 'customer': return 1;
-      case 'payment': return 2;
-      case 'summary': return 3;
-      default: return 0;
+      case 'products':
+        return 0;
+      case 'customer':
+        return 1;
+      case 'payment':
+        return 2;
+      case 'summary':
+        return 3;
+      default:
+        return 0;
     }
   }
 
@@ -818,7 +863,8 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                         filled: true,
                         fillColor: Colors.white,
                       ),
-                      onChanged: (value) => setState(() => _searchQuery = value),
+                      onChanged: (value) =>
+                          setState(() => _searchQuery = value),
                     ),
                   ),
                 ],
@@ -836,7 +882,7 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
             ],
           ),
         ),
-        
+
         // Lista de productos/variedades
         Expanded(
           child: _filteredItems.isEmpty
@@ -858,9 +904,16 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                   itemBuilder: (context, index) {
                     final item = _filteredItems[index];
                     final isProduct = item is ProductDTO;
-                    final name = isProduct ? item.name : (item as ProductVarietyDTO).name;
-                    final price = isProduct ? item.basePrice : (item as ProductVarietyDTO).price;
-                    
+                    final name = isProduct
+                        ? item.name
+                        : (item as ProductVarietyDTO).name;
+                    final price = isProduct
+                        ? item.basePrice
+                        : (item as ProductVarietyDTO).price;
+                    final imageUrl = isProduct
+                        ? (item as ProductDTO).imageUrl
+                        : null;
+
                     return Card(
                       elevation: 2,
                       shape: RoundedRectangleBorder(
@@ -879,14 +932,24 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                                 decoration: BoxDecoration(
                                   color: _accentColor.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(6),
+                                  image: imageUrl != null
+                                      ? DecorationImage(
+                                          image: NetworkImage(imageUrl),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
                                 ),
-                                child: Center(
-                                  child: Icon(
-                                    isProduct ? Icons.inventory_2 : Icons.style,
-                                    color: _accentColor,
-                                    size: 20,
-                                  ),
-                                ),
+                                child: imageUrl == null
+                                    ? Center(
+                                        child: Icon(
+                                          isProduct
+                                              ? Icons.inventory_2
+                                              : Icons.style,
+                                          color: _accentColor,
+                                          size: 20,
+                                        ),
+                                      )
+                                    : null,
                               ),
                               const SizedBox(height: 6),
                               Text(
@@ -911,7 +974,9 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                               const Spacer(),
                               Container(
                                 width: double.infinity,
-                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 4,
+                                ),
                                 decoration: BoxDecoration(
                                   color: _primaryColor,
                                   borderRadius: BorderRadius.circular(4),
@@ -1021,9 +1086,9 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (customer.email != null)
-                        Text(customer.email!),
-                      if (customer.currentDebt != null && customer.currentDebt! > 0)
+                      if (customer.email != null) Text(customer.email!),
+                      if (customer.currentDebt != null &&
+                          customer.currentDebt! > 0)
                         Text(
                           'Deuda: \$${customer.currentDebt!.toStringAsFixed(2)}',
                           style: const TextStyle(color: Colors.orange),
@@ -1060,7 +1125,7 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           Card(
             child: Column(
               children: [
@@ -1098,9 +1163,9 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
               ],
             ),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           Text(
             'Notas (Opcional)',
             style: TextStyle(
@@ -1110,7 +1175,7 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          
+
           TextField(
             controller: _notesController,
             decoration: InputDecoration(
@@ -1143,7 +1208,7 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           // Información del cliente
           Card(
             child: Padding(
@@ -1168,9 +1233,9 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 8),
-          
+
           // Información de pago
           Card(
             child: Padding(
@@ -1195,9 +1260,9 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Productos
           Text(
             'Productos (${_cartItems.length})',
@@ -1208,42 +1273,44 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          
-          ..._cartItems.map((item) => Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.name,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          '${item.quantity} x \$${item.unitPrice.toStringAsFixed(2)}',
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                      ],
+
+          ..._cartItems.map(
+            (item) => Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.name,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            '${item.quantity} x \$${item.unitPrice.toStringAsFixed(2)}',
+                            style: const TextStyle(color: Colors.grey),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  Text(
-                    '\$${item.subtotal.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+                    Text(
+                      '\$${item.subtotal.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          )),
-          
+          ),
+
           const SizedBox(height: 16),
-          
+
           // Totales
           Card(
             color: _primaryColor.withOpacity(0.05),
@@ -1291,10 +1358,14 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
 
   String _getPaymentMethodName(String method) {
     switch (method) {
-      case 'cash': return 'Efectivo';
-      case 'card': return 'Tarjeta';
-      case 'credit': return 'Crédito';
-      default: return 'Efectivo';
+      case 'cash':
+        return 'Efectivo';
+      case 'card':
+        return 'Tarjeta';
+      case 'credit':
+        return 'Crédito';
+      default:
+        return 'Efectivo';
     }
   }
 
@@ -1344,7 +1415,7 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                 ],
               ),
             ),
-          
+
           // Botones de navegación
           Row(
             children: [
@@ -1362,9 +1433,9 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                     ),
                   ),
                 ),
-              
+
               if (_saleStep != 'products') const SizedBox(width: 16),
-              
+
               Expanded(
                 flex: _saleStep == 'products' ? 1 : 1,
                 child: ElevatedButton(
@@ -1386,11 +1457,16 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
 
   String _getNextButtonText() {
     switch (_saleStep) {
-      case 'products': return 'Continuar';
-      case 'customer': return 'Método de Pago';
-      case 'payment': return 'Revisar Venta';
-      case 'summary': return 'Crear Venta';
-      default: return 'Continuar';
+      case 'products':
+        return 'Continuar';
+      case 'customer':
+        return 'Método de Pago';
+      case 'payment':
+        return 'Revisar Venta';
+      case 'summary':
+        return 'Crear Venta';
+      default:
+        return 'Continuar';
     }
   }
 
@@ -1411,7 +1487,9 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: _primaryColor,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
+                ),
               ),
               child: Row(
                 children: [
@@ -1453,15 +1531,20 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                               children: [
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         item.name,
-                                        style: const TextStyle(fontWeight: FontWeight.bold),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
                                       Text(
                                         '${item.quantity} x \$${item.unitPrice.toStringAsFixed(2)}',
-                                        style: const TextStyle(color: Colors.grey),
+                                        style: const TextStyle(
+                                          color: Colors.grey,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -1475,7 +1558,10 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                                 ),
                                 const SizedBox(width: 8),
                                 IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                  ),
                                   onPressed: () {
                                     _removeFromCart(index);
                                     Navigator.pop(context);
@@ -1561,14 +1647,15 @@ class QuantityModal extends StatefulWidget {
 }
 
 class _QuantityModalState extends State<QuantityModal> {
-  final TextEditingController _customQuantityController = TextEditingController();
+  final TextEditingController _customQuantityController =
+      TextEditingController();
   final TextEditingController _priceController = TextEditingController();
-  
+
   String _priceOption = 'base'; // base, custom
   String _quantityOption = 'preset'; // preset, custom
   double _quantity = 1.0;
   double _unitPrice = 0.0;
-  
+
   final List<double> _presetQuantities = [1, 5, 10, 15, 25, 50];
 
   @override
@@ -1617,7 +1704,7 @@ class _QuantityModalState extends State<QuantityModal> {
                 ],
               ),
             ),
-            
+
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -1629,51 +1716,53 @@ class _QuantityModalState extends State<QuantityModal> {
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 12),
-                  
+
                   // Cantidades predefinidas
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: _presetQuantities.map((qty) => 
-                      GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _quantity = qty;
-                            _quantityOption = 'preset';
-                          });
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16, 
-                            vertical: 8
-                          ),
-                          decoration: BoxDecoration(
-                            color: _quantity == qty 
-                                ? const Color(0xFF1A237E) 
-                                : Colors.grey[200],
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: _quantity == qty 
-                                  ? const Color(0xFF1A237E) 
-                                  : Colors.grey[300]!,
+                    children: _presetQuantities
+                        .map(
+                          (qty) => GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _quantity = qty;
+                                _quantityOption = 'preset';
+                              });
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _quantity == qty
+                                    ? const Color(0xFF1A237E)
+                                    : Colors.grey[200],
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: _quantity == qty
+                                      ? const Color(0xFF1A237E)
+                                      : Colors.grey[300]!,
+                                ),
+                              ),
+                              child: Text(
+                                qty.toString(),
+                                style: TextStyle(
+                                  color: _quantity == qty
+                                      ? Colors.white
+                                      : Colors.black87,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
                             ),
                           ),
-                          child: Text(
-                            qty.toString(),
-                            style: TextStyle(
-                              color: _quantity == qty 
-                                  ? Colors.white 
-                                  : Colors.black87,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ).toList(),
+                        )
+                        .toList(),
                   ),
-                  
+
                   const SizedBox(height: 12),
-                  
+
                   // Opción de cantidad personalizada
                   Row(
                     children: [
@@ -1683,7 +1772,8 @@ class _QuantityModalState extends State<QuantityModal> {
                           setState(() {
                             _quantityOption = value! ? 'custom' : 'preset';
                             if (_quantityOption == 'custom') {
-                              _customQuantityController.text = _quantity.toString();
+                              _customQuantityController.text = _quantity
+                                  .toString();
                             }
                           });
                         },
@@ -1691,20 +1781,22 @@ class _QuantityModalState extends State<QuantityModal> {
                       const Text('Cantidad personalizada'),
                     ],
                   ),
-                  
+
                   if (_quantityOption == 'custom') ...[
                     const SizedBox(height: 8),
                     TextField(
                       controller: _customQuantityController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       decoration: InputDecoration(
                         labelText: 'Ingresa cantidad',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
                         contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, 
-                          vertical: 8
+                          horizontal: 12,
+                          vertical: 8,
                         ),
                       ),
                       onChanged: (value) {
@@ -1714,20 +1806,22 @@ class _QuantityModalState extends State<QuantityModal> {
                       },
                     ),
                   ],
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   const Text(
                     'Precio',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  
+
                   Row(
                     children: [
                       Expanded(
                         child: RadioListTile<String>(
-                          title: Text('Base (\$${widget.basePrice.toStringAsFixed(2)})'),
+                          title: Text(
+                            'Base (\$${widget.basePrice.toStringAsFixed(2)})',
+                          ),
                           value: 'base',
                           groupValue: _priceOption,
                           contentPadding: EdgeInsets.zero,
@@ -1735,14 +1829,15 @@ class _QuantityModalState extends State<QuantityModal> {
                             setState(() {
                               _priceOption = value!;
                               _unitPrice = widget.basePrice;
-                              _priceController.text = widget.basePrice.toStringAsFixed(2);
+                              _priceController.text = widget.basePrice
+                                  .toStringAsFixed(2);
                             });
                           },
                         ),
                       ),
                     ],
                   ),
-                  
+
                   Row(
                     children: [
                       Expanded(
@@ -1760,12 +1855,14 @@ class _QuantityModalState extends State<QuantityModal> {
                       ),
                     ],
                   ),
-                  
+
                   if (_priceOption == 'custom') ...[
                     const SizedBox(height: 8),
                     TextField(
                       controller: _priceController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       decoration: InputDecoration(
                         labelText: 'Precio unitario',
                         prefixText: '\$',
@@ -1773,20 +1870,21 @@ class _QuantityModalState extends State<QuantityModal> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, 
-                          vertical: 8
+                          horizontal: 12,
+                          vertical: 8,
                         ),
                       ),
                       onChanged: (value) {
                         setState(() {
-                          _unitPrice = double.tryParse(value) ?? widget.basePrice;
+                          _unitPrice =
+                              double.tryParse(value) ?? widget.basePrice;
                         });
                       },
                     ),
                   ],
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -1814,13 +1912,14 @@ class _QuantityModalState extends State<QuantityModal> {
                       ],
                     ),
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () => widget.onAddToCart(_quantity, _unitPrice),
+                      onPressed: () =>
+                          widget.onAddToCart(_quantity, _unitPrice),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF1A237E),
                         foregroundColor: Colors.white,

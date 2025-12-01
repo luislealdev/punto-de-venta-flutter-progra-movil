@@ -7,6 +7,7 @@ class ProductDTO {
   final String? barcode;
   final String? sku;
   final double? basePrice;
+  final String? imageUrl;
   final bool? isActive;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -20,6 +21,7 @@ class ProductDTO {
     this.barcode,
     this.sku,
     required this.basePrice,
+    this.imageUrl,
     this.isActive = true,
     this.createdAt,
     this.updatedAt,
@@ -35,11 +37,12 @@ class ProductDTO {
       barcode: json['barcode'] as String?,
       sku: json['sku'] as String?,
       basePrice: (json['basePrice'] as num?)?.toDouble(),
+      imageUrl: json['imageUrl'] as String?,
       isActive: json['isActive'] as bool? ?? true,
-      createdAt: json['createdAt'] != null 
+      createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'] as String)
           : null,
-      updatedAt: json['updatedAt'] != null 
+      updatedAt: json['updatedAt'] != null
           ? DateTime.parse(json['updatedAt'] as String)
           : null,
     );
@@ -55,6 +58,7 @@ class ProductDTO {
       'barcode': barcode,
       'sku': sku,
       'basePrice': basePrice,
+      'imageUrl': imageUrl,
       'isActive': isActive,
       'createdAt': createdAt?.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),

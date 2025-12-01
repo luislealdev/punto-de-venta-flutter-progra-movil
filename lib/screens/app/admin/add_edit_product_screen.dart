@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../models/product_dto.dart';
 import '../../../models/category_dto.dart';
 import '../../../services/product_service.dart';
 import '../../../services/category_service.dart';
+import '../../../services/storage_service.dart';
 
 class AddEditProductScreen extends StatefulWidget {
   final ProductDTO? product;
@@ -23,7 +25,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
   final _formKey = GlobalKey<FormState>();
   final ProductService _productService = ProductService();
   final CategoryService _categoryService = CategoryService();
-  
+
   final Color _primaryColor = const Color(0xFF1A237E);
   final Color _backgroundColor = const Color(0xFFF5F7FA);
 
@@ -38,7 +40,11 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
   List<CategoryDTO> _categories = [];
   String? _selectedCategoryId;
   bool _isLoadingCategories = true;
-  
+
+  // Image related
+  Uint8List? _imageBytes;
+  String? _imageUrl;
+
   bool _isLoading = false;
   bool _isEditing = false;
 
@@ -54,7 +60,9 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
 
   Future<void> _loadCategories() async {
     try {
-      final categories = await _categoryService.getActiveCategories(widget.companyId);
+      final categories = await _categoryService.getActiveCategories(
+        widget.companyId,
+      );
       setState(() {
         _categories = categories;
         _isLoadingCategories = false;
@@ -77,6 +85,37 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     _selectedCategoryId = product.categoryId;
     _skuController.text = product.sku ?? '';
     _barcodeController.text = product.barcode ?? '';
+    _imageUrl = product.imageUrl; // Cargar imagen existente
+  }
+
+  // Método para seleccionar imagen
+  Future<void> _pickImage() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        final bytes = await image.readAsBytes();
+        setState(() {
+          _imageBytes = bytes;
+        });
+      }
+    } catch (e) {
+      print('Error al seleccionar imagen: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error al seleccionar imagen'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _saveProduct() async {
@@ -85,21 +124,72 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     setState(() => _isLoading = true);
 
     try {
+      // Subir imagen si se seleccionó una nueva
+      String? finalImageUrl = _imageUrl; // Mantener URL existente
+
+      if (_imageBytes != null) {
+        try {
+          final storageService = StorageService();
+          final tempId = _isEditing
+              ? widget.product!.id!
+              : DateTime.now().millisecondsSinceEpoch.toString();
+
+          finalImageUrl = await storageService.uploadProductImage(
+            productId: tempId,
+            imageBytes: _imageBytes!,
+            fileName: 'product_image.jpg',
+          );
+
+          if (finalImageUrl == null) {
+            print('⚠️ No se pudo subir la imagen, continuando sin imagen...');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Advertencia: No se pudo subir la imagen (CORS). Producto guardado sin imagen.',
+                  ),
+                  backgroundColor: Colors.orange,
+                  duration: Duration(seconds: 4),
+                ),
+              );
+            }
+          }
+        } catch (imageError) {
+          print('⚠️ Error al subir imagen: $imageError');
+          print('⚠️ Continuando sin imagen...');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Advertencia: Error al subir imagen. Producto guardado sin imagen.',
+                ),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 4),
+              ),
+            );
+          }
+          // No lanzar error, continuar sin imagen
+          finalImageUrl = _imageUrl; // Mantener URL existente o null
+        }
+      }
+
       final productData = ProductDTO(
         id: _isEditing ? widget.product!.id : null,
         name: _nameController.text.trim(),
-        description: _descriptionController.text.trim().isEmpty 
-            ? null 
+        description: _descriptionController.text.trim().isEmpty
+            ? null
             : _descriptionController.text.trim(),
         basePrice: double.parse(_basePriceController.text),
-        sku: _skuController.text.trim().isEmpty 
-            ? null 
+        sku: _skuController.text.trim().isEmpty
+            ? null
             : _skuController.text.trim(),
-        barcode: _barcodeController.text.trim().isEmpty 
-            ? null 
+        barcode: _barcodeController.text.trim().isEmpty
+            ? null
             : _barcodeController.text.trim(),
         companyId: widget.companyId,
-        categoryId: _selectedCategoryId, // Ahora incluye la categoría seleccionada
+        categoryId:
+            _selectedCategoryId, // Ahora incluye la categoría seleccionada
+        imageUrl: finalImageUrl, // Agregar URL de imagen
         isActive: true,
         createdAt: _isEditing ? widget.product!.createdAt : null,
         updatedAt: _isEditing ? widget.product!.updatedAt : null,
@@ -108,7 +198,11 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
       print('Datos del producto a guardar: ${productData.toJson()}'); // Debug
 
       if (_isEditing) {
-        await _productService.update(widget.companyId, widget.product!.id!, productData);
+        await _productService.update(
+          widget.companyId,
+          widget.product!.id!,
+          productData,
+        );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -137,10 +231,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
       print('Error completo: $e'); // Debug adicional
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -154,7 +245,10 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
         backgroundColor: _primaryColor,
         title: Text(
           _isEditing ? 'Editar Producto' : 'Nuevo Producto',
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
@@ -180,7 +274,9 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
             children: [
               Card(
                 elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
@@ -195,7 +291,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      
+
                       // Nombre del producto
                       _buildTextField(
                         controller: _nameController,
@@ -212,7 +308,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                         },
                       ),
                       const SizedBox(height: 16),
-                      
+
                       // Descripción
                       _buildTextField(
                         controller: _descriptionController,
@@ -227,19 +323,23 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                         },
                       ),
                       const SizedBox(height: 16),
-                      
+
                       // Selector de categoría
                       _buildCategorySelector(),
                       const SizedBox(height: 16),
-                      
+
                       // Precio base
                       _buildTextField(
                         controller: _basePriceController,
                         label: 'Precio Base *',
                         icon: Icons.attach_money,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
                         inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'^\d*\.?\d{0,2}'),
+                          ),
                         ],
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
@@ -259,13 +359,15 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // Información adicional
               Card(
                 elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
@@ -280,30 +382,36 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      
+
                       // SKU
                       _buildTextField(
                         controller: _skuController,
                         label: 'SKU (Opcional)',
                         icon: Icons.qr_code,
                         validator: (value) {
-                          if (value != null && value.isNotEmpty && value.length < 3) {
+                          if (value != null &&
+                              value.isNotEmpty &&
+                              value.length < 3) {
                             return 'El SKU debe tener al menos 3 caracteres';
                           }
                           return null;
                         },
                       ),
                       const SizedBox(height: 16),
-                      
+
                       // Código de barras
                       _buildTextField(
                         controller: _barcodeController,
                         label: 'Código de Barras (Opcional)',
                         icon: Icons.barcode_reader,
                         keyboardType: TextInputType.number,
-                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
                         validator: (value) {
-                          if (value != null && value.isNotEmpty && value.length < 8) {
+                          if (value != null &&
+                              value.isNotEmpty &&
+                              value.length < 8) {
                             return 'El código de barras debe tener al menos 8 dígitos';
                           }
                           return null;
@@ -313,9 +421,86 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                   ),
                 ),
               ),
-              
+
+              const SizedBox(height: 16),
+
+              // Card de imagen
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Imagen del Producto',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: _primaryColor,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Preview de imagen
+                      if (_imageBytes != null || _imageUrl != null)
+                        Center(
+                          child: Container(
+                            width: 150,
+                            height: 150,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey[300]!),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: _imageBytes != null
+                                  ? Image.memory(
+                                      _imageBytes!,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : Image.network(
+                                      _imageUrl!,
+                                      fit: BoxFit.cover,
+                                    ),
+                            ),
+                          ),
+                        ),
+
+                      if (_imageBytes != null || _imageUrl != null)
+                        const SizedBox(height: 16),
+
+                      // Botón seleccionar imagen
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _pickImage,
+                          icon: const Icon(Icons.image),
+                          label: Text(
+                            _imageBytes != null || _imageUrl != null
+                                ? 'Cambiar Imagen'
+                                : 'Seleccionar Imagen',
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: _primaryColor,
+                            side: BorderSide(color: _primaryColor),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
               const SizedBox(height: 24),
-              
+
               // Botón de guardar
               SizedBox(
                 width: double.infinity,
@@ -349,7 +534,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                         ),
                 ),
               ),
-              
+
               const SizedBox(height: 16),
             ],
           ),
@@ -456,7 +641,9 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
                           width: 24,
                           height: 24,
                           decoration: BoxDecoration(
-                            color: Color(int.parse('0xFF${category.color!.substring(1)}')),
+                            color: Color(
+                              int.parse('0xFF${category.color!.substring(1)}'),
+                            ),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Icon(
@@ -485,19 +672,32 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
 
   IconData _getIconFromString(String iconString) {
     switch (iconString) {
-      case 'category': return Icons.category;
-      case 'shopping_cart': return Icons.shopping_cart;
-      case 'local_grocery_store': return Icons.local_grocery_store;
-      case 'store': return Icons.store;
-      case 'inventory': return Icons.inventory;
-      case 'lunch_dining': return Icons.lunch_dining;
-      case 'coffee': return Icons.coffee;
-      case 'wine_bar': return Icons.wine_bar;
-      case 'devices': return Icons.devices;
-      case 'sports_esports': return Icons.sports_esports;
-      case 'book': return Icons.book;
-      case 'home': return Icons.home;
-      default: return Icons.category;
+      case 'category':
+        return Icons.category;
+      case 'shopping_cart':
+        return Icons.shopping_cart;
+      case 'local_grocery_store':
+        return Icons.local_grocery_store;
+      case 'store':
+        return Icons.store;
+      case 'inventory':
+        return Icons.inventory;
+      case 'lunch_dining':
+        return Icons.lunch_dining;
+      case 'coffee':
+        return Icons.coffee;
+      case 'wine_bar':
+        return Icons.wine_bar;
+      case 'devices':
+        return Icons.devices;
+      case 'sports_esports':
+        return Icons.sports_esports;
+      case 'book':
+        return Icons.book;
+      case 'home':
+        return Icons.home;
+      default:
+        return Icons.category;
     }
   }
 
@@ -519,9 +719,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, color: _primaryColor),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey[300]!),
@@ -536,7 +734,10 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
         ),
         filled: true,
         fillColor: Colors.grey[50],
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
       ),
     );
   }
