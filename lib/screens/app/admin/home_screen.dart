@@ -4,7 +4,9 @@ import '../../../services/auth_service.dart';
 import '../../../services/sale_service.dart';
 import '../../../services/customer_service.dart';
 import '../../../services/product_service.dart';
+import '../../../services/subscription_service.dart';
 import '../../../models/sale_dto.dart';
+import '../../../models/subscription_dto.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,11 +24,13 @@ class _HomeScreenState extends State<HomeScreen> {
   final SaleService _saleService = SaleService();
   final CustomerService _customerService = CustomerService();
   final ProductService _productService = ProductService();
+  final SubscriptionService _subscriptionService = SubscriptionService();
 
   User? user;
   bool _isLoading = true;
   
   // Dashboard stats
+  SubscriptionDTO? _subscription;
   double _totalSales = 0.0;
   double _yesterdaySales = 0.0;
   int _totalOrders = 0;
@@ -58,11 +62,20 @@ class _HomeScreenState extends State<HomeScreen> {
         _loadSalesData(companyId),
         _loadCustomersData(companyId),
         _loadProductsData(companyId),
+        _loadSubscriptionData(companyId),
       ]);
     } catch (e) {
       debugPrint('Error loading dashboard data: $e');
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadSubscriptionData(String companyId) async {
+    try {
+      _subscription = await _subscriptionService.getByCompany(companyId);
+    } catch (e) {
+      debugPrint('Error loading subscription data: $e');
     }
   }
 
@@ -207,6 +220,63 @@ class _HomeScreenState extends State<HomeScreen> {
               style: TextStyle(color: Colors.grey[600], fontSize: 16),
             ),
             const SizedBox(height: 24),
+
+            // Subscription Status Card
+            if (_subscription != null)
+              Container(
+                margin: const EdgeInsets.only(bottom: 24),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _subscription!.isActive ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _subscription!.isActive ? Colors.green : Colors.red,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _subscription!.isActive ? Icons.check_circle : Icons.warning,
+                      color: _subscription!.isActive ? Colors.green : Colors.red,
+                      size: 32,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _subscription!.isActive ? 'Suscripción Activa' : 'Suscripción Inactiva',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: _subscription!.isActive ? Colors.green[800] : Colors.red[800],
+                            ),
+                          ),
+                          if (_subscription!.endDate != null)
+                            Text(
+                              'Vence el: ${_subscription!.endDate!.toString().split(' ')[0]}',
+                              style: TextStyle(
+                                color: _subscription!.isActive ? Colors.green[800] : Colors.red[800],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (!_subscription!.isActive)
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/stripe-payment');
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Renovar'),
+                      ),
+                  ],
+                ),
+              ),
 
             // Stats Cards
             _isLoading
@@ -430,14 +500,6 @@ class _HomeScreenState extends State<HomeScreen> {
             onTap: () {
               Navigator.pop(context);
               Navigator.pushNamed(context, '/reports');
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.payment),
-            title: const Text('Pagos Stripe'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.pushNamed(context, '/stripe-payment');
             },
           ),
           const Divider(),

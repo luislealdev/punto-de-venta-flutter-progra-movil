@@ -30,6 +30,7 @@ import 'package:punto_de_venta/screens/onboarding/onboarding_screen.dart';
 import 'package:punto_de_venta/services/auth_service.dart';
 import 'package:punto_de_venta/utils/theme_app.dart';
 import 'package:punto_de_venta/utils/value_listener.dart';
+import 'package:punto_de_venta/utils/subscription_wrapper.dart';
 
 Future<void> _backgroundHandler(RemoteMessage message) async {
   debugPrint("Handling a background message: ${message.messageId}");
@@ -132,16 +133,16 @@ class _MyAppState extends State<MyApp> {
             '/onboarding': (context) => const OnboardingScreen(),
             '/login': (context) => const LoginScreen(),
             '/register': (context) => const RegisterScreen(),
-            '/home': (context) => const HomeScreen(),
-            '/profile': (context) => const ProfileScreen(),
-            '/products': (context) => const ProductsScreen(),
-            '/customers': (context) => const CustomersScreen(),
-            '/providers': (context) => const ProvidersScreen(),
-            '/stores': (context) => const StoresScreen(),
-            '/employees': (context) => const EmployeesScreen(),
-            '/reports': (context) => const ReportsScreen(),
-            '/new-sale': (context) => const NewSaleScreen(),
-            '/sales-management': (context) => const SalesManagementScreen(),
+            '/home': (context) => const SubscriptionWrapper(child: HomeScreen()),
+            '/profile': (context) => const SubscriptionWrapper(child: ProfileScreen()),
+            '/products': (context) => const SubscriptionWrapper(child: ProductsScreen()),
+            '/customers': (context) => const SubscriptionWrapper(child: CustomersScreen()),
+            '/providers': (context) => const SubscriptionWrapper(child: ProvidersScreen()),
+            '/stores': (context) => const SubscriptionWrapper(child: StoresScreen()),
+            '/employees': (context) => const SubscriptionWrapper(child: EmployeesScreen()),
+            '/reports': (context) => const SubscriptionWrapper(child: ReportsScreen()),
+            '/new-sale': (context) => const SubscriptionWrapper(child: NewSaleScreen()),
+            '/sales-management': (context) => const SubscriptionWrapper(child: SalesManagementScreen()),
             '/stripe-payment': (context) => const StripePaymentScreen(),
           },
           onGenerateRoute: (settings) {
@@ -149,102 +150,122 @@ class _MyAppState extends State<MyApp> {
               case '/products/add':
                 final args = settings.arguments as Map<String, dynamic>?;
                 return MaterialPageRoute(
-                  builder: (context) =>
-                      AddEditProductScreen(companyId: args?['companyId'] ?? ''),
+                  builder: (context) => SubscriptionWrapper(
+                    child: AddEditProductScreen(companyId: args?['companyId'] ?? ''),
+                  ),
                 );
               case '/products/edit':
                 final args = settings.arguments as Map<String, dynamic>?;
                 return MaterialPageRoute(
-                  builder: (context) => AddEditProductScreen(
-                    product: args?['product'],
-                    companyId: args?['companyId'] ?? '',
+                  builder: (context) => SubscriptionWrapper(
+                    child: AddEditProductScreen(
+                      product: args?['product'],
+                      companyId: args?['companyId'] ?? '',
+                    ),
                   ),
                 );
               case '/products/varieties':
                 final args = settings.arguments as Map<String, dynamic>?;
                 return MaterialPageRoute(
-                  builder: (context) => ProductVarietiesScreen(
-                    product: args?['product'],
-                    companyId: args?['companyId'] ?? '',
+                  builder: (context) => SubscriptionWrapper(
+                    child: ProductVarietiesScreen(
+                      product: args?['product'],
+                      companyId: args?['companyId'] ?? '',
+                    ),
                   ),
                 );
               case '/products/varieties/add':
                 final args = settings.arguments as Map<String, dynamic>?;
                 return MaterialPageRoute(
-                  builder: (context) => AddEditVarietyScreen(
-                    product: args?['product'],
-                    companyId: args?['companyId'] ?? '',
+                  builder: (context) => SubscriptionWrapper(
+                    child: AddEditVarietyScreen(
+                      product: args?['product'],
+                      companyId: args?['companyId'] ?? '',
+                    ),
                   ),
                 );
               case '/products/varieties/edit':
                 final args = settings.arguments as Map<String, dynamic>?;
                 return MaterialPageRoute(
-                  builder: (context) => AddEditVarietyScreen(
-                    variety: args?['variety'],
-                    product: args?['product'],
-                    companyId: args?['companyId'] ?? '',
+                  builder: (context) => SubscriptionWrapper(
+                    child: AddEditVarietyScreen(
+                      variety: args?['variety'],
+                      product: args?['product'],
+                      companyId: args?['companyId'] ?? '',
+                    ),
                   ),
                 );
               case '/customers':
                 return MaterialPageRoute(
-                  builder: (context) => const CustomersScreen(),
+                  builder: (context) => const SubscriptionWrapper(child: CustomersScreen()),
                 );
               case '/customers/add':
                 final args = settings.arguments as Map<String, dynamic>?;
                 return MaterialPageRoute(
-                  builder: (context) => AddEditCustomerScreen(
-                    companyId: args?['companyId'] ?? '',
+                  builder: (context) => SubscriptionWrapper(
+                    child: AddEditCustomerScreen(
+                      companyId: args?['companyId'] ?? '',
+                    ),
                   ),
                 );
               case '/customers/edit':
                 final args = settings.arguments as Map<String, dynamic>?;
                 return MaterialPageRoute(
-                  builder: (context) => AddEditCustomerScreen(
-                    customer: args?['customer'],
-                    companyId: args?['companyId'] ?? '',
+                  builder: (context) => SubscriptionWrapper(
+                    child: AddEditCustomerScreen(
+                      customer: args?['customer'],
+                      companyId: args?['companyId'] ?? '',
+                    ),
                   ),
                 );
               case '/providers':
                 return MaterialPageRoute(
-                  builder: (context) => const ProvidersScreen(),
+                  builder: (context) => const SubscriptionWrapper(child: ProvidersScreen()),
                 );
               case '/providers/add':
                 final args = settings.arguments as Map<String, dynamic>?;
                 return MaterialPageRoute(
-                  builder: (context) => AddEditProviderScreen(
-                    companyId: args?['companyId'] ?? '',
+                  builder: (context) => SubscriptionWrapper(
+                    child: AddEditProviderScreen(
+                      companyId: args?['companyId'] ?? '',
+                    ),
                   ),
                 );
               case '/providers/edit':
                 final args = settings.arguments as Map<String, dynamic>?;
                 return MaterialPageRoute(
-                  builder: (context) => AddEditProviderScreen(
-                    provider: args?['provider'],
-                    companyId: args?['companyId'] ?? '',
+                  builder: (context) => SubscriptionWrapper(
+                    child: AddEditProviderScreen(
+                      provider: args?['provider'],
+                      companyId: args?['companyId'] ?? '',
+                    ),
                   ),
                 );
               case '/stores/add':
                 final args = settings.arguments as Map<String, dynamic>?;
                 return MaterialPageRoute(
-                  builder: (context) =>
-                      AddEditStoreScreen(companyId: args?['companyId'] ?? ''),
+                  builder: (context) => SubscriptionWrapper(
+                    child: AddEditStoreScreen(companyId: args?['companyId'] ?? ''),
+                  ),
                 );
               case '/stores/edit':
                 final args = settings.arguments as Map<String, dynamic>?;
                 return MaterialPageRoute(
-                  builder: (context) => AddEditStoreScreen(
-                    store: args?['store'],
-                    companyId: args?['companyId'] ?? '',
+                  builder: (context) => SubscriptionWrapper(
+                    child: AddEditStoreScreen(
+                      store: args?['store'],
+                      companyId: args?['companyId'] ?? '',
+                    ),
                   ),
                 );
               case '/add-employee':
                 return MaterialPageRoute(
-                  builder: (context) => const AddEditEmployeeScreen(),
+                  builder: (context) => const SubscriptionWrapper(child: AddEditEmployeeScreen()),
                 );
               case '/edit-employee':
                 final employee = settings.arguments as EmployeeDTO?;
                 return MaterialPageRoute(
-                  builder: (context) => AddEditEmployeeScreen(employee: employee),
+                  builder: (context) => SubscriptionWrapper(child: AddEditEmployeeScreen(employee: employee)),
                 );
               default:
                 return null;
