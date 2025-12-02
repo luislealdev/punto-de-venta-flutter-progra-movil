@@ -432,6 +432,14 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.pushNamed(context, '/reports');
             },
           ),
+          ListTile(
+            leading: const Icon(Icons.payment),
+            title: const Text('Pagos Stripe'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.pushNamed(context, '/stripe-payment');
+            },
+          ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.person_outline),

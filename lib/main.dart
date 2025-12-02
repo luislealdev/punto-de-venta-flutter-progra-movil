@@ -1,6 +1,8 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:punto_de_venta/config/app_config.dart';
 import 'package:punto_de_venta/firebase_options.dart';
 import 'package:punto_de_venta/screens/app/admin/add_edit_customer_screen.dart';
@@ -14,6 +16,7 @@ import 'package:punto_de_venta/screens/app/admin/employees_screen.dart';
 import 'package:punto_de_venta/screens/app/admin/home_screen.dart';
 import 'package:punto_de_venta/screens/app/admin/new_sale_screen.dart';
 import 'package:punto_de_venta/screens/app/admin/sales_management_screen.dart';
+import 'package:punto_de_venta/screens/app/admin/stripe_payment_screen.dart';
 import 'package:punto_de_venta/screens/app/admin/product_varieties_screen.dart';
 import 'package:punto_de_venta/screens/app/admin/products_screen.dart';
 import 'package:punto_de_venta/screens/app/admin/profile_screen.dart';
@@ -28,17 +31,26 @@ import 'package:punto_de_venta/services/auth_service.dart';
 import 'package:punto_de_venta/utils/theme_app.dart';
 import 'package:punto_de_venta/utils/value_listener.dart';
 
+Future<void> _backgroundHandler(RemoteMessage message) async {
+  debugPrint("Handling a background message: ${message.messageId}");
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Cargar variables de entorno
   await dotenv.load(fileName: ".env");
 
+  // Configurar Stripe
+  Stripe.publishableKey = dotenv.env['STRIPE_PUBLISHABLE_KEY_TEST'] ?? '';
+
   // Validar configuración
   AppConfig.validateConfiguration();
   AppConfig.printConfiguration();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  FirebaseMessaging.onBackgroundMessage(_backgroundHandler);
 
   // Inicializar contexto del usuario si ya está autenticado
   final authService = AuthService();
@@ -55,6 +67,59 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupNotifications();
+  }
+
+  void _setupNotifications() async {
+    NotificationSettings settings = await _firebaseMessaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+    debugPrint('User granted permission: ${settings.authorizationStatus}');
+
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      debugPrint('Message data: ${message.data}');
+      if (message.notification != null) {
+        debugPrint('Message also contained a notification: ${message.notification}');
+      }
+    });
+
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      debugPrint('Message clicked! ${message.messageId}');
+    });
+    
+    // Imprimir token para pruebas
+    // En iOS, necesitamos esperar a que el token APNS esté disponible antes de obtener el token FCM
+    if (Theme.of(context).platform == TargetPlatform.iOS) {
+      String? apnsToken = await _firebaseMessaging.getAPNSToken();
+      if (apnsToken != null) {
+        final token = await _firebaseMessaging.getToken();
+        debugPrint("FCM Token: $token");
+      } else {
+        debugPrint("APNS Token not available yet");
+        // Reintentar después de un breve retraso si es necesario
+        Future.delayed(const Duration(seconds: 3), () async {
+          apnsToken = await _firebaseMessaging.getAPNSToken();
+          if (apnsToken != null) {
+            final token = await _firebaseMessaging.getToken();
+            debugPrint("FCM Token (retry): $token");
+          } else {
+            debugPrint("APNS Token still not available");
+          }
+        });
+      }
+    } else {
+      final token = await _firebaseMessaging.getToken();
+      debugPrint("FCM Token: $token");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder(
@@ -77,6 +142,7 @@ class _MyAppState extends State<MyApp> {
             '/reports': (context) => const ReportsScreen(),
             '/new-sale': (context) => const NewSaleScreen(),
             '/sales-management': (context) => const SalesManagementScreen(),
+            '/stripe-payment': (context) => const StripePaymentScreen(),
           },
           onGenerateRoute: (settings) {
             switch (settings.name) {

@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../models/user_info_dto.dart';
 import '../models/company_dto.dart';
@@ -269,9 +270,11 @@ class AuthService {
     try {
       // Iniciar el flujo de autenticación de Google
       // IMPORTANTE: Para web, necesitamos especificar el clientId
+      // En iOS y Android, el clientId se toma de los archivos de configuración (plist/json)
       final GoogleSignIn googleSignIn = GoogleSignIn(
-        clientId:
-            '289080553746-l04d4g97m3e3p447u1b0fc4nnt8cjcn7.apps.googleusercontent.com',
+        clientId: kIsWeb
+            ? '289080553746-l04d4g97m3e3p447u1b0fc4nnt8cjcn7.apps.googleusercontent.com'
+            : null,
       );
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 
