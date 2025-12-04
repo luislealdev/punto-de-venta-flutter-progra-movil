@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../models/store_dto.dart';
 import '../../../services/store_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../providers/store_provider.dart';
 import 'add_edit_store_screen.dart';
 
 class StoresScreen extends StatefulWidget {
@@ -29,7 +31,9 @@ class _StoresScreenState extends State<StoresScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeScreen();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeScreen();
+    });
   }
 
   Future<void> _initializeScreen() async {
@@ -75,51 +79,38 @@ class _StoresScreenState extends State<StoresScreen> {
   }
 
   Future<void> _loadStores() async {
-    if (_companyId.isEmpty) {
-      print('❌ No se puede cargar tiendas: companyId está vacío');
+    if (_companyId.isEmpty) return;
+    
+    final storeProvider = Provider.of<StoreProvider>(context, listen: false);
+    
+    if (storeProvider.stores.isNotEmpty) {
+      var stores = storeProvider.stores.where((s) => s.isActive == true).toList();
+      setState(() {
+        _stores = stores;
+        _filteredStores = stores;
+        _isLoading = false;
+      });
       return;
     }
-    
+
     try {
-      print('📍 Cargando tiendas para empresa: $_companyId');
       setState(() => _isLoading = true);
+      await storeProvider.loadStores(_companyId);
       
-      final stores = await _storeService.getActiveStores(_companyId);
-      print('✅ Tiendas cargadas: ${stores.length}');
+      var stores = storeProvider.stores.where((s) => s.isActive == true).toList();
       
-      if (stores.isNotEmpty) {
-        print('🏪 Tiendas encontradas:');
-        for (var store in stores) {
-          print('  - ${store.name} (ID: ${store.id})');
-        }
-      }
-      
-      // Si no hay tiendas, crear una tienda por defecto
       if (stores.isEmpty) {
         print('🏪 No hay tiendas, creando tienda por defecto...');
         try {
           await _createDefaultStore();
-          // Recargar tiendas después de crear la tienda por defecto
-          final updatedStores = await _storeService.getActiveStores(_companyId);
-          print('✅ Tiendas después de crear por defecto: ${updatedStores.length}');
-          setState(() {
-            _stores = updatedStores;
-            _filteredStores = updatedStores;
-            _isLoading = false;
-          });
+          await storeProvider.loadStores(_companyId);
+          stores = storeProvider.stores.where((s) => s.isActive == true).toList();
         } catch (e) {
           print('❌ Error creando tienda por defecto: $e');
-          setState(() => _isLoading = false);
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Error creando tienda por defecto: $e'),
-                backgroundColor: Colors.red,
-              ),
-            );
-          }
         }
-      } else {
+      }
+      
+      if (mounted) {
         setState(() {
           _stores = stores;
           _filteredStores = stores;
@@ -127,18 +118,8 @@ class _StoresScreenState extends State<StoresScreen> {
         });
       }
     } catch (e) {
-      print('❌ Error al cargar tiendas: $e');
-      print('🔍 Stack trace: ${StackTrace.current}');
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al cargar tiendas: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
+      print('❌ Error cargando tiendas: $e');
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 

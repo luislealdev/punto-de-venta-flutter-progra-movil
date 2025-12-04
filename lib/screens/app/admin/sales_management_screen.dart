@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../../models/sale_dto.dart';
 import '../../../models/customer_dto.dart';
 import '../../../services/sale_service.dart';
@@ -7,6 +8,8 @@ import '../../../services/customer_service.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/whatsapp_service.dart';
 import '../../../config/app_config.dart';
+import '../../../providers/sale_provider.dart';
+import '../../../providers/customer_provider.dart';
 
 class SalesManagementScreen extends StatefulWidget {
   const SalesManagementScreen({super.key});
@@ -39,7 +42,9 @@ class _SalesManagementScreenState extends State<SalesManagementScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeScreen();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeScreen();
+    });
   }
 
   @override
@@ -92,60 +97,53 @@ class _SalesManagementScreenState extends State<SalesManagementScreen> {
   }
 
   Future<void> _loadSales() async {
-    if (_companyId.isEmpty) {
-      print('❌ No se puede cargar ventas: companyId está vacío');
-      return;
-    }
+    if (_companyId.isEmpty) return;
     
-    try {
-      print('💰 Cargando ventas para empresa: $_companyId');
-      setState(() => _isLoading = true);
-      
-      // Cargar todas las ventas (podemos agregar paginación después si es necesario)
-      final sales = await _saleService.getAll(_companyId);
-      print('✅ Ventas cargadas: ${sales.length}');
-      
-      if (sales.isNotEmpty) {
-        print('💰 Ventas encontradas:');
-        for (var sale in sales.take(3)) { // Solo mostrar las primeras 3 en logs
-          final customerName = _getCustomerName(sale.customerId);
-          print('  - ${sale.number} - \$${sale.total} ($customerName)');
-        }
-        if (sales.length > 3) {
-          print('  ... y ${sales.length - 3} ventas más');
-        }
-      }
-      
+    final saleProvider = Provider.of<SaleProvider>(context, listen: false);
+    
+    if (saleProvider.sales.isNotEmpty) {
       setState(() {
-        _sales = sales;
-        _filteredSales = sales;
+        _sales = saleProvider.sales;
+        _filteredSales = _sales;
         _isLoading = false;
       });
-      
       _applyFilters();
-    } catch (e, stackTrace) {
-      print('❌ Error al cargar ventas: $e');
-      print('🔍 Stack trace: $stackTrace');
-      setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      setState(() => _isLoading = true);
+      
+      await saleProvider.loadSales(_companyId);
+      
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al cargar ventas: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        setState(() {
+          _sales = saleProvider.sales;
+          _filteredSales = _sales;
+          _isLoading = false;
+        });
+        _applyFilters();
       }
+    } catch (e) {
+      print('❌ Error al cargar ventas: $e');
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _loadCustomers() async {
     try {
-      print('👥 Cargando clientes...');
-      final customers = await _customerService.getAll(_companyId);
-      _customersCache = {for (var customer in customers) customer.id!: customer};
-      print('✅ Clientes cargados: ${customers.length}');
+      final customerProvider = Provider.of<CustomerProvider>(context, listen: false);
+      if (customerProvider.customers.isEmpty) {
+        await customerProvider.loadCustomers(_companyId);
+      }
+      
+      if (mounted) {
+        setState(() {
+          _customersCache = {for (var customer in customerProvider.customers) customer.id!: customer};
+        });
+      }
     } catch (e) {
-      print('⚠️ Error cargando clientes: $e');
+      print('❌ Error cargando clientes: $e');
     }
   }
 

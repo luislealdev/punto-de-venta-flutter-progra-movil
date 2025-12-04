@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../models/product_dto.dart';
 import '../../../models/category_dto.dart';
 import '../../../services/product_service.dart';
 import '../../../services/category_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../providers/product_provider.dart';
 import 'add_edit_category_screen.dart';
 
 class ProductsScreen extends StatefulWidget {
@@ -33,7 +35,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeData();
+    });
   }
 
   Future<void> _initializeData() async {
@@ -56,20 +60,34 @@ class _ProductsScreenState extends State<ProductsScreen> {
     }
   }
 
-  Future<void> _loadProducts() async {
+  Future<void> _loadProducts({bool forceRefresh = false}) async {
     if (_companyId == null) return;
+
+    final productProvider = Provider.of<ProductProvider>(context, listen: false);
+    
+    if (!forceRefresh && productProvider.products.isNotEmpty) {
+      setState(() {
+        _products = productProvider.products.where((p) => p.isActive == true).toList();
+        _filteredProducts = _products;
+        _isLoading = false;
+      });
+      return;
+    }
 
     setState(() => _isLoading = true);
     try {
-      final products = await _productService.getActiveProducts(_companyId!);
-      setState(() {
-        _products = products;
-        _filteredProducts = products;
-        _isLoading = false;
-      });
+      await productProvider.loadProducts(_companyId!);
+      
+      if (mounted) {
+        setState(() {
+          _products = productProvider.products.where((p) => p.isActive == true).toList();
+          _filteredProducts = _products;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       print('Error al cargar productos: $e');
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -393,7 +411,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
       context,
       '/products/add',
       arguments: {'companyId': _companyId},
-    ).then((_) => _loadProducts());
+    ).then((_) => _loadProducts(forceRefresh: true));
   }
 
   void _navigateToEditProduct(ProductDTO product) {
@@ -401,7 +419,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
       context,
       '/products/edit',
       arguments: {'product': product, 'companyId': _companyId},
-    ).then((_) => _loadProducts());
+    ).then((_) => _loadProducts(forceRefresh: true));
   }
 
   void _navigateToProductVarieties(ProductDTO product) {
@@ -443,7 +461,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
           product.id!,
           false,
         );
-        _loadProducts();
+        _loadProducts(forceRefresh: true);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Producto "${product.name}" eliminado')),
@@ -674,7 +692,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     ),
                   )
                 : RefreshIndicator(
-                    onRefresh: _loadProducts,
+                    onRefresh: () => _loadProducts(forceRefresh: true),
                     child: ListView.builder(
                       padding: const EdgeInsets.all(16.0),
                       itemCount: _filteredProducts.length,
@@ -688,12 +706,19 @@ class _ProductsScreenState extends State<ProductsScreen> {
                           ),
                           child: ListTile(
                             contentPadding: const EdgeInsets.all(16.0),
-                            leading: CircleAvatar(
-                              radius: 30,
-                              backgroundColor: _primaryColor.withOpacity(0.1),
-                              backgroundImage: product.imageUrl != null
-                                  ? NetworkImage(product.imageUrl!)
-                                  : null,
+                            leading: Container(
+                              width: 60,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                color: _primaryColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                image: product.imageUrl != null
+                                    ? DecorationImage(
+                                        image: NetworkImage(product.imageUrl!),
+                                        fit: BoxFit.cover,
+                                      )
+                                    : null,
+                              ),
                               child: product.imageUrl == null
                                   ? Icon(
                                       Icons.inventory_2_outlined,

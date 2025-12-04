@@ -3,9 +3,11 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../../models/employee_dto.dart';
 import '../../../services/employee_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../providers/employee_provider.dart';
 
 class EmployeesScreen extends StatefulWidget {
   const EmployeesScreen({super.key});
@@ -46,7 +48,10 @@ class _EmployeesScreenState extends State<EmployeesScreen>
     super.didChangeDependencies();
     if (_isFirstLoad) {
       _isFirstLoad = false;
-      _loadEmployees();
+      // Usar addPostFrameCallback para evitar errores de construcción
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadEmployees();
+      });
     }
   }
 
@@ -58,45 +63,45 @@ class _EmployeesScreenState extends State<EmployeesScreen>
   }
 
   Future<void> _loadEmployees() async {
+    final companyId = _authService.currentCompanyId;
+    if (companyId == null) return;
+
+    final employeeProvider = Provider.of<EmployeeProvider>(context, listen: false);
+    
+    // Si ya hay datos, mostrarlos inmediatamente sin loading
+    if (employeeProvider.employees.isNotEmpty) {
+      setState(() {
+        _allEmployees = employeeProvider.employees;
+        _applyFilters();
+        _isLoading = false;
+      });
+      _animationController.forward();
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
-      final companyId = _authService.currentCompanyId;
       print('🔍 EmployeesScreen - Loading employees for companyId: $companyId');
       
-      if (companyId != null) {
-        final employees = await _employeeService.getByCompanyId(companyId);
-        print('✅ EmployeesScreen - Loaded ${employees.length} employees');
-        
+      await employeeProvider.loadEmployees(companyId);
+      print('✅ EmployeesScreen - Loaded ${employeeProvider.employees.length} employees');
+      
+      if (mounted) {
         setState(() {
-          _allEmployees = employees;
+          _allEmployees = employeeProvider.employees;
           _applyFilters();
           _isLoading = false;
         });
         _animationController.forward();
-      } else {
-        print('❌ EmployeesScreen - companyId is null!');
+      }
+    } catch (e) {
+      print('❌ EmployeesScreen - Error loading employees: $e');
+      if (mounted) {
         setState(() {
           _allEmployees = [];
           _filteredEmployees = [];
           _isLoading = false;
         });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No se pudo cargar la información de la compañía. Intenta cerrar sesión y volver a iniciar.'),
-              duration: Duration(seconds: 5),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      print('❌ EmployeesScreen - Error loading employees: $e');
-      setState(() {
-        _allEmployees = [];
-        _filteredEmployees = [];
-        _isLoading = false;
-      });
-      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error al cargar empleados: $e')),
         );

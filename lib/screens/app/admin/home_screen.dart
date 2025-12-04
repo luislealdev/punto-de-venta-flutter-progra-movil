@@ -1,12 +1,14 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../services/auth_service.dart';
-import '../../../services/sale_service.dart';
-import '../../../services/customer_service.dart';
-import '../../../services/product_service.dart';
-import '../../../services/subscription_service.dart';
-import '../../../models/sale_dto.dart';
-import '../../../models/subscription_dto.dart';
+import '../../../providers/customer_provider.dart';
+import '../../../providers/product_provider.dart';
+import '../../../providers/sale_provider.dart';
+import '../../../providers/subscription_provider.dart';
+import '../../../providers/employee_provider.dart';
+import '../../../providers/supplier_provider.dart';
+import '../../../providers/store_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,133 +23,71 @@ class _HomeScreenState extends State<HomeScreen> {
   final Color _backgroundColor = const Color(0xFFF5F7FA);
 
   final AuthService _authService = AuthService();
-  final SaleService _saleService = SaleService();
-  final CustomerService _customerService = CustomerService();
-  final ProductService _productService = ProductService();
-  final SubscriptionService _subscriptionService = SubscriptionService();
 
   User? user;
   bool _isLoading = true;
   
-  // Dashboard stats
-  SubscriptionDTO? _subscription;
-  double _totalSales = 0.0;
-  double _yesterdaySales = 0.0;
-  int _totalOrders = 0;
-  int _pendingOrders = 0;
-  int _totalCustomers = 0;
-  int _newCustomersToday = 0;
-  int _lowStockProducts = 0;
-  List<SaleDTO> _recentSales = [];
-
   @override
   void initState() {
     super.initState();
     user = FirebaseAuth.instance.currentUser;
-    _loadDashboardData();
+    // Usamos addPostFrameCallback para cargar datos después del primer build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadDashboardData();
+    });
   }
 
   Future<void> _loadDashboardData() async {
-    setState(() => _isLoading = true);
+    // No establecemos _isLoading a true aquí porque queremos que los providers manejen su estado
+    // y la UI reaccione a ellos. Pero para la carga inicial completa, podemos usar un estado local si queremos bloquear.
+    // Sin embargo, la idea es que sea fluido.
     
     try {
       final companyId = _authService.currentCompanyId;
-      if (companyId == null) {
-        setState(() => _isLoading = false);
-        return;
-      }
+      if (companyId == null) return;
 
-      // Cargar datos en paralelo
+      // Cargar todos los datos necesarios
+      final saleProvider = Provider.of<SaleProvider>(context, listen: false);
+      final customerProvider = Provider.of<CustomerProvider>(context, listen: false);
+      final productProvider = Provider.of<ProductProvider>(context, listen: false);
+      final subscriptionProvider = Provider.of<SubscriptionProvider>(context, listen: false);
+      final employeeProvider = Provider.of<EmployeeProvider>(context, listen: false);
+      final supplierProvider = Provider.of<SupplierProvider>(context, listen: false);
+      final storeProvider = Provider.of<StoreProvider>(context, listen: false);
+
+      // Ejecutar cargas en paralelo
       await Future.wait([
-        _loadSalesData(companyId),
-        _loadCustomersData(companyId),
-        _loadProductsData(companyId),
-        _loadSubscriptionData(companyId),
+        if (saleProvider.sales.isEmpty) saleProvider.loadSales(companyId),
+        if (customerProvider.customers.isEmpty) customerProvider.loadCustomers(companyId),
+        if (productProvider.products.isEmpty) productProvider.loadProducts(companyId),
+        subscriptionProvider.checkSubscription(companyId), // Siempre verificar suscripción
+        if (employeeProvider.employees.isEmpty) employeeProvider.loadEmployees(companyId),
+        if (supplierProvider.providers.isEmpty) supplierProvider.loadProviders(companyId),
+        if (storeProvider.stores.isEmpty) storeProvider.loadStores(companyId),
       ]);
+
     } catch (e) {
       debugPrint('Error loading dashboard data: $e');
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _loadSubscriptionData(String companyId) async {
-    try {
-      _subscription = await _subscriptionService.getByCompany(companyId);
-    } catch (e) {
-      debugPrint('Error loading subscription data: $e');
-    }
-  }
+  Future<void> _refreshDashboard() async {
+    final companyId = _authService.currentCompanyId;
+    if (companyId == null) return;
 
-  Future<void> _loadSalesData(String companyId) async {
-    try {
-      final today = DateTime.now();
-      final startOfDay = DateTime(today.year, today.month, today.day);
-      final yesterday = startOfDay.subtract(const Duration(days: 1));
-      
-      // Obtener todas las ventas
-      final allSales = await _saleService.getAll(companyId);
-      
-      // Filtrar ventas de hoy
-      final todaySales = allSales.where((sale) {
-        return sale.saleDate != null && sale.saleDate!.isAfter(startOfDay);
-      }).toList();
-      
-      // Filtrar ventas de ayer
-      final yesterdaySalesList = allSales.where((sale) {
-        return sale.saleDate != null && 
-               sale.saleDate!.isAfter(yesterday) && 
-               sale.saleDate!.isBefore(startOfDay);
-      }).toList();
-      
-      // Calcular totales
-      _totalSales = todaySales.fold(0.0, (sum, sale) => sum + (sale.total ?? 0.0));
-      _yesterdaySales = yesterdaySalesList.fold(0.0, (sum, sale) => sum + (sale.total ?? 0.0));
-      _totalOrders = todaySales.length;
-      
-      // Contar pedidos pendientes
-      _pendingOrders = todaySales.where((sale) {
-        return sale.status != 'completed';
-      }).length;
-      
-      // Obtener ventas recientes (últimas 5)
-      _recentSales = allSales.take(5).toList();
-      
-    } catch (e) {
-      debugPrint('Error loading sales data: $e');
-    }
-  }
-
-  Future<void> _loadCustomersData(String companyId) async {
-    try {
-      final customers = await _customerService.getAll(companyId);
-      _totalCustomers = customers.length;
-      
-      // Contar clientes nuevos de hoy
-      final today = DateTime.now();
-      final startOfDay = DateTime(today.year, today.month, today.day);
-      
-      _newCustomersToday = customers.where((customer) {
-        return customer.createdAt != null && 
-               customer.createdAt!.isAfter(startOfDay);
-      }).length;
-    } catch (e) {
-      debugPrint('Error loading customers data: $e');
-    }
-  }
-
-  Future<void> _loadProductsData(String companyId) async {
-    try {
-      final products = await _productService.getAll(companyId);
-      
-      // Contar productos inactivos o que necesitan atención
-      // Como ProductDTO no tiene campo stock, contamos productos inactivos
-      _lowStockProducts = products.where((product) {
-        return product.isActive == false;
-      }).length;
-    } catch (e) {
-      debugPrint('Error loading products data: $e');
-    }
+    final saleProvider = Provider.of<SaleProvider>(context, listen: false);
+    final customerProvider = Provider.of<CustomerProvider>(context, listen: false);
+    final productProvider = Provider.of<ProductProvider>(context, listen: false);
+    final subscriptionProvider = Provider.of<SubscriptionProvider>(context, listen: false);
+    
+    await Future.wait([
+      saleProvider.refreshSales(companyId),
+      customerProvider.loadCustomers(companyId),
+      productProvider.loadProducts(companyId),
+      subscriptionProvider.checkSubscription(companyId),
+    ]);
   }
 
   void _logout() async {
@@ -174,6 +114,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Consumir providers
+    final saleProvider = Provider.of<SaleProvider>(context);
+    final customerProvider = Provider.of<CustomerProvider>(context);
+    final productProvider = Provider.of<ProductProvider>(context);
+    final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
+    
+    // Calcular métricas derivadas
+    final subscription = subscriptionProvider.subscription;
+    
+    // Clientes nuevos hoy
+    final today = DateTime.now();
+    final startOfDay = DateTime(today.year, today.month, today.day);
+    final newCustomersToday = customerProvider.customers.where((c) {
+      return c.createdAt != null && c.createdAt!.isAfter(startOfDay);
+    }).length;
+
+    // Productos inactivos
+    final inactiveProducts = productProvider.products.where((p) => p.isActive == false).length;
+
     return Scaffold(
       backgroundColor: _backgroundColor,
       appBar: AppBar(
@@ -201,208 +160,215 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       drawer: _buildDrawer(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Bienvenido, ${user?.displayName ?? "Administrador"}',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: _primaryColor,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Resumen del día - ${DateTime.now().toString().split(' ')[0]}',
-              style: TextStyle(color: Colors.grey[600], fontSize: 16),
-            ),
-            const SizedBox(height: 24),
-
-            // Subscription Status Card
-            if (_subscription != null)
-              Container(
-                margin: const EdgeInsets.only(bottom: 24),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _subscription!.isActive ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _subscription!.isActive ? Colors.green : Colors.red,
-                  ),
+      body: RefreshIndicator(
+        onRefresh: _refreshDashboard,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Bienvenido, ${user?.displayName ?? "Administrador"}',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: _primaryColor,
                 ),
-                child: Row(
-                  children: [
-                    Icon(
-                      _subscription!.isActive ? Icons.check_circle : Icons.warning,
-                      color: _subscription!.isActive ? Colors.green : Colors.red,
-                      size: 32,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Resumen del día - ${DateTime.now().toString().split(' ')[0]}',
+                style: TextStyle(color: Colors.grey[600], fontSize: 16),
+              ),
+              const SizedBox(height: 24),
+
+              // Subscription Status Card
+              if (subscription != null)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 24),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: subscription.isActive ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: subscription.isActive ? Colors.green : Colors.red,
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _subscription!.isActive ? 'Suscripción Activa' : 'Suscripción Inactiva',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: _subscription!.isActive ? Colors.green[800] : Colors.red[800],
-                            ),
-                          ),
-                          if (_subscription!.endDate != null)
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        subscription.isActive ? Icons.check_circle : Icons.warning,
+                        color: subscription.isActive ? Colors.green : Colors.red,
+                        size: 32,
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
                             Text(
-                              'Vence el: ${_subscription!.endDate!.toString().split(' ')[0]}',
+                              subscription.isActive ? 'Suscripción Activa' : 'Suscripción Inactiva',
                               style: TextStyle(
-                                color: _subscription!.isActive ? Colors.green[800] : Colors.red[800],
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: subscription.isActive ? Colors.green[800] : Colors.red[800],
                               ),
                             ),
-                        ],
-                      ),
-                    ),
-                    if (!_subscription!.isActive)
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/stripe-payment');
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.white,
+                            if (subscription.endDate != null)
+                              Text(
+                                'Vence el: ${subscription.endDate!.toString().split(' ')[0]}',
+                                style: TextStyle(
+                                  color: subscription.isActive ? Colors.green[800] : Colors.red[800],
+                                ),
+                              ),
+                          ],
                         ),
-                        child: const Text('Renovar'),
                       ),
-                  ],
-                ),
-              ),
-
-            // Stats Cards
-            _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : LayoutBuilder(
-                    builder: (context, constraints) {
-                      int crossAxisCount = constraints.maxWidth > 600 ? 4 : 2;
-                      double childAspectRatio =
-                          constraints.maxWidth > 600 ? 1.5 : 1.2;
-
-                      // Calcular porcentaje de cambio vs ayer
-                      final percentChange = _yesterdaySales > 0
-                          ? ((_totalSales - _yesterdaySales) / _yesterdaySales * 100)
-                          : 0.0;
-                      final changeText = percentChange >= 0
-                          ? '+${percentChange.toStringAsFixed(1)}% vs ayer'
-                          : '${percentChange.toStringAsFixed(1)}% vs ayer';
-
-                      return GridView.count(
-                        crossAxisCount: crossAxisCount,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        childAspectRatio: childAspectRatio,
-                        children: [
-                          _buildStatCard(
-                            'Ventas Totales',
-                            '\$${_totalSales.toStringAsFixed(2)}',
-                            Icons.attach_money,
-                            Colors.green,
-                            changeText,
+                      if (!subscription.isActive)
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pushNamed(context, '/stripe-payment');
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
                           ),
-                          _buildStatCard(
-                            'Pedidos',
-                            '$_totalOrders',
-                            Icons.shopping_bag_outlined,
-                            Colors.orange,
-                            '$_pendingOrders pendientes',
-                          ),
-                          _buildStatCard(
-                            'Clientes',
-                            '$_totalCustomers',
-                            Icons.people_outline,
-                            Colors.blue,
-                            '+$_newCustomersToday nuevos hoy',
-                          ),
-                          _buildStatCard(
-                            'Alerta',
-                            '$_lowStockProducts',
-                            Icons.warning_amber_rounded,
-                            Colors.red,
-                            'Productos inactivos',
-                          ),
-                        ],
-                      );
-                    },
+                          child: const Text('Renovar'),
+                        ),
+                    ],
                   ),
+                ),
 
-            const SizedBox(height: 32),
+              // Stats Cards
+              _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        int crossAxisCount = constraints.maxWidth > 600 ? 4 : 2;
+                        double childAspectRatio =
+                            constraints.maxWidth > 600 ? 1.5 : 1.2;
 
-            // Recent Activity Section
-            Text(
-              'Actividad Reciente',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: _primaryColor,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: _isLoading
-                  ? const Padding(
-                      padding: EdgeInsets.all(32.0),
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  : _recentSales.isEmpty
-                      ? const Padding(
-                          padding: EdgeInsets.all(32.0),
-                          child: Center(
-                            child: Text(
-                              'No hay ventas recientes',
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          ),
-                        )
-                      : ListView.separated(
+                        // Calcular porcentaje de cambio vs ayer
+                        final yesterdaySales = saleProvider.yesterdaySales;
+                        final totalSales = saleProvider.totalSales;
+                        
+                        final percentChange = yesterdaySales > 0
+                            ? ((totalSales - yesterdaySales) / yesterdaySales * 100)
+                            : 0.0;
+                        final changeText = percentChange >= 0
+                            ? '+${percentChange.toStringAsFixed(1)}% vs ayer'
+                            : '${percentChange.toStringAsFixed(1)}% vs ayer';
+
+                        return GridView.count(
+                          crossAxisCount: crossAxisCount,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
-                          itemCount: _recentSales.length,
-                          separatorBuilder: (context, index) =>
-                              const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final sale = _recentSales[index];
-                            final timeAgo = sale.saleDate != null
-                                ? _getTimeAgo(sale.saleDate!)
-                                : 'Fecha desconocida';
+                          childAspectRatio: childAspectRatio,
+                          children: [
+                            _buildStatCard(
+                              'Ventas Totales',
+                              '\$${totalSales.toStringAsFixed(2)}',
+                              Icons.attach_money,
+                              Colors.green,
+                              changeText,
+                            ),
+                            _buildStatCard(
+                              'Pedidos',
+                              '${saleProvider.totalOrders}',
+                              Icons.shopping_bag_outlined,
+                              Colors.orange,
+                              '${saleProvider.pendingOrders} pendientes',
+                            ),
+                            _buildStatCard(
+                              'Clientes',
+                              '${customerProvider.customers.length}',
+                              Icons.people_outline,
+                              Colors.blue,
+                              '+$newCustomersToday nuevos hoy',
+                            ),
+                            _buildStatCard(
+                              'Alerta',
+                              '$inactiveProducts',
+                              Icons.warning_amber_rounded,
+                              Colors.red,
+                              'Productos inactivos',
+                            ),
+                          ],
+                        );
+                      },
+                    ),
 
-                            return ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: Colors.blue[50],
-                                child: Icon(
-                                  Icons.receipt_long,
-                                  color: _primaryColor,
-                                  size: 20,
-                                ),
+              const SizedBox(height: 32),
+
+              // Recent Activity Section
+              Text(
+                'Actividad Reciente',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: _primaryColor,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: _isLoading
+                    ? const Padding(
+                        padding: EdgeInsets.all(32.0),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    : saleProvider.recentSales.isEmpty
+                        ? const Padding(
+                            padding: EdgeInsets.all(32.0),
+                            child: Center(
+                              child: Text(
+                                'No hay ventas recientes',
+                                style: TextStyle(color: Colors.grey),
                               ),
-                              title: Text('Venta #${sale.number ?? 'S/N'}'),
-                              subtitle: Text(timeAgo),
-                              trailing: Text(
-                                '\$${(sale.total ?? 0.0).toStringAsFixed(2)}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
+                            ),
+                          )
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: saleProvider.recentSales.length,
+                            separatorBuilder: (context, index) =>
+                                const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final sale = saleProvider.recentSales[index];
+                              final timeAgo = sale.saleDate != null
+                                  ? _getTimeAgo(sale.saleDate!)
+                                  : 'Fecha desconocida';
+
+                              return ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: Colors.blue[50],
+                                  child: Icon(
+                                    Icons.receipt_long,
+                                    color: _primaryColor,
+                                    size: 20,
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
-                        ),
-            ),
-          ],
+                                title: Text('Venta #${sale.number ?? 'S/N'}'),
+                                subtitle: Text(timeAgo),
+                                trailing: Text(
+                                  '\$${(sale.total ?? 0.0).toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+              ),
+            ],
+          ),
         ),
       ),
     );

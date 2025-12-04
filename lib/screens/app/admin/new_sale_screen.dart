@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../../../models/product_dto.dart';
 import '../../../models/product_variety_dto.dart';
 import '../../../models/customer_dto.dart';
 import '../../../models/sale_dto.dart';
 import '../../../models/sale_item_dto.dart';
-import '../../../services/product_service.dart';
 import '../../../services/product_variety_service.dart';
 import '../../../services/customer_service.dart';
 import '../../../services/sale_service.dart';
 import '../../../services/whatsapp_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../providers/sale_provider.dart';
+import '../../../providers/product_provider.dart';
+import '../../../providers/customer_provider.dart';
 
 class NewSaleScreen extends StatefulWidget {
   const NewSaleScreen({super.key});
@@ -20,7 +23,6 @@ class NewSaleScreen extends StatefulWidget {
 }
 
 class _NewSaleScreenState extends State<NewSaleScreen> {
-  final ProductService _productService = ProductService();
   final ProductVarietyService _varietyService = ProductVarietyService();
   final CustomerService _customerService = CustomerService();
   final SaleService _saleService = SaleService();
@@ -56,7 +58,9 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeScreen();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeScreen();
+    });
   }
 
   @override
@@ -70,7 +74,9 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
       _isEditMode = true;
       _saleToEdit = args['saleToEdit'] as SaleDTO?;
       if (_saleToEdit != null) {
-        _loadSaleForEditing();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _loadSaleForEditing();
+        });
       }
     }
   }
@@ -129,23 +135,32 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
       print('📊 Cargando datos para companyId: $_companyId');
       setState(() => _isLoading = true);
 
-      final results = await Future.wait([
-        _productService.getActiveProducts(_companyId),
-        _varietyService.getActiveVarieties(_companyId),
-        _customerService.getActiveCustomers(_companyId),
-      ]);
+      final productProvider = Provider.of<ProductProvider>(context, listen: false);
+      final customerProvider = Provider.of<CustomerProvider>(context, listen: false);
 
-      print('✅ Datos cargados:');
-      print('   - Productos: ${(results[0] as List).length}');
-      print('   - Variedades: ${(results[1] as List).length}');
-      print('   - Clientes: ${(results[2] as List).length}');
+      // Cargar datos si no están en memoria
+      final futures = <Future>[];
+      if (productProvider.products.isEmpty) futures.add(productProvider.loadProducts(_companyId));
+      if (customerProvider.customers.isEmpty) futures.add(customerProvider.loadCustomers(_companyId));
+      
+      // Siempre cargar variedades (no tiene provider aún)
+      final varietiesFuture = _varietyService.getActiveVarieties(_companyId);
+      
+      await Future.wait([...futures, varietiesFuture]);
+      
+      final varieties = await varietiesFuture;
 
       setState(() {
-        _products = results[0] as List<ProductDTO>;
-        _varieties = results[1] as List<ProductVarietyDTO>;
-        _customers = results[2] as List<CustomerDTO>;
+        _products = productProvider.products.where((p) => p.isActive == true).toList();
+        _customers = customerProvider.customers.where((c) => c.isActive == true).toList();
+        _varieties = varieties;
         _isLoading = false;
       });
+
+      print('✅ Datos cargados:');
+      print('   - Productos: ${_products.length}');
+      print('   - Variedades: ${_varieties.length}');
+      print('   - Clientes: ${_customers.length}');
 
       print('🎉 Datos establecidos correctamente');
     } catch (e) {
@@ -448,8 +463,9 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
           )
           .toList();
 
-      // Actualizar la venta en Firestore
-      await _saleService.updateSaleWithItems(
+      // Actualizar la venta en Firestore y provider
+      final saleProvider = Provider.of<SaleProvider>(context, listen: false);
+      await saleProvider.updateSale(
         _companyId,
         _saleToEdit!.id!,
         updatedSale,
@@ -559,8 +575,9 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
           )
           .toList();
 
-      // Guardar la venta en Firestore
-      final saleId = await _saleService.createSaleWithItems(
+      // Guardar la venta en Firestore y actualizar provider
+      final saleProvider = Provider.of<SaleProvider>(context, listen: false);
+      final saleId = await saleProvider.createSale(
         _companyId,
         sale,
         saleItems,
@@ -895,10 +912,10 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
               : GridView.builder(
                   padding: const EdgeInsets.all(16),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
+                    crossAxisCount: 2,
                     childAspectRatio: 0.75,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
                   ),
                   itemCount: _filteredItems.length,
                   itemBuilder: (context, index) {
@@ -915,23 +932,23 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                         : null;
 
                     return Card(
-                      elevation: 2,
+                      elevation: 4,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: InkWell(
                         onTap: () => _addToCart(item),
-                        borderRadius: BorderRadius.circular(8),
-                        child: Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Container(
-                                height: 40,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: Container(
                                 decoration: BoxDecoration(
                                   color: _accentColor.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(6),
+                                  borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(12),
+                                  ),
                                   image: imageUrl != null
                                       ? DecorationImage(
                                           image: NetworkImage(imageUrl),
@@ -946,53 +963,61 @@ class _NewSaleScreenState extends State<NewSaleScreen> {
                                               ? Icons.inventory_2
                                               : Icons.style,
                                           color: _accentColor,
-                                          size: 20,
+                                          size: 40,
                                         ),
                                       )
                                     : null,
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                name ?? '',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 11,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '\$${price?.toStringAsFixed(2) ?? '0.00'}',
-                                style: TextStyle(
-                                  color: _primaryColor,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              const Spacer(),
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _primaryColor,
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: const Text(
-                                  '+',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    name ?? '',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '\$${price?.toStringAsFixed(2) ?? '0.00'}',
+                                    style: TextStyle(
+                                      color: _primaryColor,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _primaryColor,
+                                borderRadius: const BorderRadius.vertical(
+                                  bottom: Radius.circular(12),
                                 ),
                               ),
-                            ],
-                          ),
+                              child: const Text(
+                                'AGREGAR',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     );

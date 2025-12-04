@@ -3,8 +3,16 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
+import 'package:provider/provider.dart';
 import 'package:punto_de_venta/config/app_config.dart';
 import 'package:punto_de_venta/firebase_options.dart';
+import 'package:punto_de_venta/providers/customer_provider.dart';
+import 'package:punto_de_venta/providers/product_provider.dart';
+import 'package:punto_de_venta/providers/sale_provider.dart';
+import 'package:punto_de_venta/providers/employee_provider.dart';
+import 'package:punto_de_venta/providers/supplier_provider.dart';
+import 'package:punto_de_venta/providers/store_provider.dart';
+import 'package:punto_de_venta/providers/subscription_provider.dart';
 import 'package:punto_de_venta/screens/app/admin/add_edit_customer_screen.dart';
 import 'package:punto_de_venta/screens/app/admin/add_edit_employee_screen.dart';
 import 'package:punto_de_venta/screens/app/admin/add_edit_product_screen.dart';
@@ -57,7 +65,20 @@ void main() async {
   final authService = AuthService();
   await authService.initializeContext();
 
-  runApp(const MyApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => CustomerProvider()),
+        ChangeNotifierProvider(create: (_) => ProductProvider()),
+        ChangeNotifierProvider(create: (_) => SaleProvider()),
+        ChangeNotifierProvider(create: (_) => EmployeeProvider()),
+        ChangeNotifierProvider(create: (_) => SupplierProvider()),
+        ChangeNotifierProvider(create: (_) => StoreProvider()),
+        ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatefulWidget {

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../../models/provider_dto.dart';
 import '../../../services/provider_service.dart';
 import '../../../services/auth_service.dart';
+import '../../../providers/supplier_provider.dart';
 import 'add_edit_provider_screen.dart';
 
 class ProvidersScreen extends StatefulWidget {
@@ -29,7 +31,10 @@ class _ProvidersScreenState extends State<ProvidersScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeData();
+    // Usar addPostFrameCallback para evitar errores de construcción
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeData();
+    });
   }
 
   Future<void> _initializeData() async {
@@ -50,17 +55,31 @@ class _ProvidersScreenState extends State<ProvidersScreen> {
   Future<void> _loadProviders() async {
     if (_companyId == null) return;
     
-    try {
-      setState(() => _isLoading = true);
-      final providers = await _providerService.getActiveProviders(_companyId!);
+    final supplierProvider = Provider.of<SupplierProvider>(context, listen: false);
+    
+    if (supplierProvider.providers.isNotEmpty) {
       setState(() {
-        _providers = providers;
-        _filteredProviders = providers;
+        _providers = supplierProvider.providers.where((p) => p.isActive == true).toList();
+        _filteredProviders = _providers;
         _isLoading = false;
       });
-    } catch (e) {
-      setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      setState(() => _isLoading = true);
+      await supplierProvider.loadProviders(_companyId!);
+      
       if (mounted) {
+        setState(() {
+          _providers = supplierProvider.providers.where((p) => p.isActive == true).toList();
+          _filteredProviders = _providers;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error al cargar proveedores: $e'),
